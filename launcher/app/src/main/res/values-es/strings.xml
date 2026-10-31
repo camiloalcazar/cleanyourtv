@@ -43,6 +43,16 @@
     <string name="storage_gb_decimal">%1$.1f GB</string>
     <string name="dream_name">Reloj</string>
     <string name="launcher_settings">Ajustes del lanzador</string>
+    <string name="style_label">Estilo de la pantalla de inicio</string>
+    <string name="style_home">Inicio</string>
+    <string name="style_tv_settings">Ajustes de TV</string>
+    <string name="style_roku">Roku clásico</string>
+    <string name="style_roku_new">Roku nuevo</string>
+    <string name="style_options">Opciones</string>
+    <string name="style_apps_count">%1$d apps</string>
+    <string name="style_item_of">%1$d de %2$d apps</string>
+    <string name="style_for_you">La mejor selección para ti</string>
+    <string name="style_quick_access">Acceso rápido</string>
     <string name="native_settings">Ajustes del fabricante</string>
     <string name="columns_label">Aplicaciones por fila</string>
     <string name="dock_opacity_label">Opacidad de la barra del dock</string>

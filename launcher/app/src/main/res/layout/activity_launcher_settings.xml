@@ -22,11 +22,37 @@
             android:textSize="34sp" />
 
         <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="28dp"
+            android:text="@string/style_label"
+            android:textColor="#FFFFFFFF"
+            android:textSize="20sp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:orientation="horizontal">
+
+            <TextView android:id="@+id/styleApple" style="@style/SettingsColumnChoice" android:text="@string/style_apple" />
+            <TextView android:id="@+id/styleWii" style="@style/SettingsColumnChoice" android:text="@string/style_wii" />
+            <TextView android:id="@+id/styleRoku" style="@style/SettingsColumnChoice" android:text="@string/style_roku" />
+            <TextView android:id="@+id/styleRokuNew" style="@style/SettingsColumnChoice" android:text="@string/style_roku_new" />
+        </LinearLayout>
+
+        <TextView
             android:id="@+id/reorderChoice"
             style="@style/SettingsRow"
             android:layout_marginTop="28dp"
             android:text="@string/reorder"
             android:visibility="gone" />
+
+        <LinearLayout
+            android:id="@+id/defaultLookChoices"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
 
         <TextView
             android:layout_width="match_parent"
@@ -88,6 +114,8 @@
             <TextView android:id="@+id/dock30" style="@style/SettingsColumnChoice" android:text="30%" />
         </LinearLayout>
 
+        </LinearLayout>
+
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -123,6 +151,7 @@
             android:layout_marginTop="10dp" />
 
         <TextView
+            android:id="@+id/advancedWarning"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"

@@ -143,6 +143,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private AppAdapter adapter;
     private RecyclerView grid;
     private FrameLayout root;
+    /** The chosen style's screen, or null for the default one (LauncherStyle). */
+    private StyledHome styled;
     private WallpaperPlayer wallpaperPlayer;
     private GlassView glass;
     private View ambient;
@@ -433,10 +435,12 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_main);
         density = getResources().getDisplayMetrics().density;
         // config.xml, overlaid by config.json from a pushed theme (see Config and tools/theme.sh).
         Config cfg = Config.load(this);
+        // A style picked in Launcher settings draws its own screen; null keeps the default one below.
+        styled = StyledHome.create(this, cfg);
+        if (styled == null) setContentView(R.layout.activity_main);
         homeAppKeys = RemoteKeys.parseAppKeys(cfg.appKeys);
         clockFormat = cfg.clockFormat;
         ClockFormat.apply(getWindow().getDecorView(), clockFormat);
@@ -476,6 +480,14 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         sourcePanelAction = cfg.sourcePanelAction;
         sourcePanelExtra = cfg.sourcePanelExtra;
         coocaaSources = cfg.coocaaSources;
+        if (styled != null) {
+            // The Inputs menu and input switching are shared; everything below belongs to the default screen.
+            inputsConnectedOnly = cfg.inputsConnectedOnly;
+            root = (FrameLayout) findViewById(android.R.id.content);
+            btnInputs = findViewById(R.id.btnInputs);
+            if (savedInstanceState == null && !openLauncherSettingsIfAsked(getIntent())) openInputsIfAsked(getIntent());
+            return;
+        }
 
         root = findViewById(R.id.root);
         root.setBackgroundColor(cfg.backgroundColor);
@@ -1015,6 +1027,11 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
+        if (styled != null) {
+            if (openLauncherSettingsIfAsked(intent) || openInputsIfAsked(intent)) return;
+            if (intent != null && intent.hasCategory(Intent.CATEGORY_HOME)) styled.goHome();
+            return;
+        }
         if (openLauncherSettingsIfAsked(intent)) return;
         if (openLibraryIfAsked(intent)) return;
         if (openInputsIfAsked(intent)) return;
@@ -1037,6 +1054,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         super.onStart();
         stopped = false;
         started = true;
+        if (styled != null) return;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             registerReceiver(timeReceiver, timeFilter, Context.RECEIVER_NOT_EXPORTED);
         } else {
@@ -1050,6 +1068,21 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     protected void onResume() {
         super.onResume();
         resumed = true;
+        if (styled != null) {
+            if (Config.settingsChanged(settingsRevision, settingsRevision())) {
+                recreate();
+                return;
+            }
+            try {
+                styled.onResume();
+            } catch (RuntimeException e) {
+                // A style that cannot show its apps must not cost the TV its Home.
+                android.util.Log.e("MainActivity", "style failed; back to the default look", e);
+                LauncherStyle.save(this, LauncherStyle.APPLE);
+                recreate();
+            }
+            return;
+        }
         // A festival that started or ended while Home was in the background: rebuild with or without it.
         if (festive != festival.active(LocalDate.now())) {
             recreate();
@@ -1251,6 +1284,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     @Override
     public void onUserInteraction() {
         super.onUserInteraction();
+        if (styled != null) return;
         restartIdleClock();
     }
 
@@ -1263,6 +1297,11 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     protected void onPause() {
         super.onPause();
         resumed = false;
+        if (styled != null) {
+            RemoteKeys.release(this);
+            if (openPopup != null) openPopup.dismiss();
+            return;
+        }
         // No UP reaches a paused Home, so a vendor-key hold it saw go down would still open its app later.
         // Only Home's own share is dropped: a key service that saw the same DOWN keeps its hold.
         RemoteKeys.release(this);
@@ -1292,6 +1331,11 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     protected void onStop() {
         super.onStop();
         started = false;
+        if (styled != null) {
+            stopped = true;
+            styled.onStop();
+            return;
+        }
         unregisterReceiver(timeReceiver);
         handler.removeCallbacks(clockCheck);
         stopped = true;
@@ -1306,6 +1350,10 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     @Override
     public void onTrimMemory(int level) {
         super.onTrimMemory(level);
+        if (styled != null) {
+            if (MemoryTrimPolicy.shouldRelease(level, started)) styled.releaseArt();
+            return;
+        }
         // RUNNING_LOW and CRITICAL also arrive while Home is visible when an accessibility service keeps the
         // process in the foreground; never blank the screen the owner is looking at.
         if (!MemoryTrimPolicy.shouldRelease(level, started)) return;
@@ -1323,6 +1371,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     @Override
     public void onWindowFocusChanged(boolean hasFocus) {
         super.onWindowFocusChanged(hasFocus);
+        if (styled != null) return;
         if (hasFocus) {
             startPendingSettingsReorder();
             if (libraryFocusPending && appLibrary == null) focusLibrary();
@@ -1335,6 +1384,11 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     @Override
     protected void onDestroy() {
         super.onDestroy();
+        if (styled != null) {
+            RemoteKeys.release(this);
+            styled.onStop();
+            return;
+        }
         RemoteKeys.release(this);
         cancelHoldOk();
         if (gameDay != null) gameDay.shutdown();
@@ -1387,6 +1441,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         if (resumed && event.getKeyCode() >= 1000 && RemoteKeys.handle(this, event, homeAppKeys.get(event.getKeyCode()),
                 homeHoldAppKeys.get(event.getKeyCode()))) return true;
         if (handleSettingsKey(event)) return true;
+        if (styled != null) return styled.onKey(event) || super.dispatchKeyEvent(event);
         if (holdOk(event)) return true;
         if (tileMenuEnabled && !reordering && openPopup == null && cardPrompt == null
                 && event.getKeyCode() == KeyEvent.KEYCODE_MENU) {
@@ -3320,6 +3375,19 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         return component != null ? new Intent().setComponent(component) : new Intent(inputAction);
     }
 
+    // The buttons of a styled home (StyledHome).
+    void styledInputs() {
+        showInputs();
+    }
+
+    void styledLauncherSettings() {
+        startActivityForResult(new Intent(this, LauncherSettingsActivity.class), LAUNCHER_SETTINGS_REQUEST);
+    }
+
+    void styledTvSettings() {
+        open(systemIntent(Settings.ACTION_SETTINGS));
+    }
+
     /** Dropdown menu under the Inputs pill: HDMI ports (with connection state), AV and Live TV. */
     private void showInputs() {
         // A configured source panel and no Live TV row to offer next to it: the panel is the whole menu.
@@ -3519,6 +3587,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         // Fit the widest row: TVs that report a status on every port (Sony) would otherwise squeeze the names out.
         panel.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED);
         popup.setWidth(Math.max(width, Math.min(panel.getMeasuredWidth(), (int) (360 * density))));
+        // A styled home's button can sit at the bottom of the screen: with its height known the menu opens above it.
+        if (styled != null) popup.setHeight(panel.getMeasuredHeight());
 
         int alignment = getResources().getBoolean(R.bool.rtl_menu_bar) != underGear ? Gravity.END : Gravity.START;
         dropIn(popup, panel, anchor, alignment);

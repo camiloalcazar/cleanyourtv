@@ -49,6 +49,18 @@
     <string name="home_settings">Choose default home</string>
     <string name="home_settings_help">Select your original home to stop using CleanYourTV as Home, or CleanYourTV to switch back. The original launcher must be enabled and your TV must provide a home picker; use the restore script first if it was disabled.</string>
     <string name="launcher_settings">Launcher settings</string>
+    <string name="style_label">Home screen style</string>
+    <string name="style_apple" translatable="false">Apple TV</string>
+    <string name="style_wii" translatable="false">Wii</string>
+    <string name="style_roku">Roku classic</string>
+    <string name="style_roku_new">Roku new</string>
+    <string name="style_home">Home</string>
+    <string name="style_tv_settings">TV settings</string>
+    <string name="style_options">Options</string>
+    <string name="style_apps_count">%1$d apps</string>
+    <string name="style_item_of">%1$d of %2$d apps</string>
+    <string name="style_for_you">Top picks for you</string>
+    <string name="style_quick_access">Quick access</string>
     <string name="native_settings">Native settings</string>
     <string name="columns_label">Apps per row</string>
     <string name="rows_below_dock_label">Rows below dock</string>

@@ -48,6 +48,16 @@
     <string name="home_settings">Elegir pantalla de inicio predeterminada</string>
     <string name="home_settings_help">Elige la pantalla de inicio original para dejar de usar CleanYourTV, o elige CleanYourTV para volver a usarlo. El launcher original debe estar activado y el televisor debe ofrecer un selector de inicio; si estaba desactivado, ejecuta primero el script de restauración.</string>
     <string name="launcher_settings">Configuración del launcher</string>
+    <string name="style_label">Estilo de la pantalla de inicio</string>
+    <string name="style_home">Inicio</string>
+    <string name="style_tv_settings">Ajustes de TV</string>
+    <string name="style_roku">Roku clásico</string>
+    <string name="style_roku_new">Roku nuevo</string>
+    <string name="style_options">Opciones</string>
+    <string name="style_apps_count">%1$d apps</string>
+    <string name="style_item_of">%1$d de %2$d apps</string>
+    <string name="style_for_you">La mejor selección para ti</string>
+    <string name="style_quick_access">Acceso rápido</string>
     <string name="native_settings">Configuración del fabricante</string>
     <string name="columns_label">Aplicaciones por fila</string>
     <string name="rows_below_dock_label">Filas debajo de la barra de favoritos</string>

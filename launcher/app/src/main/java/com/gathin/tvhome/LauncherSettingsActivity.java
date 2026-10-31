@@ -28,6 +28,9 @@ public final class LauncherSettingsActivity extends Activity {
 
     static final String EXTRA_REORDER = "com.gathin.tvhome.extra.REORDER_FROM_SETTINGS";
     private SharedPreferences choices;
+    private static final String[] STYLES = {LauncherStyle.APPLE, LauncherStyle.WII, LauncherStyle.ROKU, LauncherStyle.ROKU_NEW};
+    private final TextView[] styleChoices = new TextView[STYLES.length];
+    private String style;
     private final TextView[] columnChoices = new TextView[4];
     private final TextView[] rowChoices = new TextView[4];
     private static final int[] DOCK_OPACITIES = {100, 70, 50, 30};
@@ -52,6 +55,19 @@ public final class LauncherSettingsActivity extends Activity {
         setContentView(R.layout.activity_launcher_settings);
         choices = getSharedPreferences(Config.SETTINGS_NAME, MODE_PRIVATE);
         Config config = Config.load(this);
+        style = LauncherStyle.read(this);
+        int[] styleIds = {R.id.styleApple, R.id.styleWii, R.id.styleRoku, R.id.styleRokuNew};
+        for (int i = 0; i < styleIds.length; i++) {
+            final String value = STYLES[i];
+            styleChoices[i] = findViewById(styleIds[i]);
+            styleChoices[i].setOnClickListener(v -> {
+                if (value.equals(style)) return;
+                style = value;
+                LauncherStyle.save(this, value);
+                changed();
+                refresh();
+            });
+        }
         View reorderChoice = findViewById(R.id.reorderChoice);
         reorderChoice.setVisibility(config.launcherSettingsButton ? View.VISIBLE : View.GONE);
         reorderChoice.setOnClickListener(v -> {
@@ -122,6 +138,7 @@ public final class LauncherSettingsActivity extends Activity {
             reverseRow(rowChoices);
             reverseRow(dockChoices);
             reverseRow(clockChoices);
+            reverseRow(styleChoices);
         }
         wallpaperChoice = findViewById(R.id.wallpaperChoice);
         wallpaperChoice.setOnClickListener(v -> showWallpaperPicker());
@@ -173,8 +190,9 @@ public final class LauncherSettingsActivity extends Activity {
         findViewById(R.id.tvSettingsChoice).setOnClickListener(v ->
                 open(SystemSettings.intent(this, Settings.ACTION_SETTINGS)));
         refresh();
-        if (config.launcherSettingsButton) reorderChoice.requestFocus();
-        else columnChoices[Math.max(0, Math.min(columns - 4, 3))].requestFocus();
+        for (int i = 0; i < STYLES.length; i++) {
+            if (STYLES[i].equals(style)) styleChoices[i].requestFocus();
+        }
     }
 
     private void reverseRow(TextView[] views) {
@@ -293,6 +311,16 @@ public final class LauncherSettingsActivity extends Activity {
     }
 
     private void refresh() {
+        boolean defaultLook = LauncherStyle.APPLE.equals(style);
+        for (int i = 0; i < STYLES.length; i++) styleChoices[i].setSelected(STYLES[i].equals(style));
+        // These only change the default screen; the other styles have a fixed layout of their own.
+        int defaultOnly = defaultLook ? View.VISIBLE : View.GONE;
+        findViewById(R.id.defaultLookChoices).setVisibility(defaultOnly);
+        wallpaperChoice.setVisibility(defaultOnly);
+        advancedChoice.setVisibility(defaultOnly);
+        findViewById(R.id.advancedWarning).setVisibility(defaultOnly);
+        if (!defaultLook) findViewById(R.id.reorderChoice).setVisibility(View.GONE);
+        else if (Config.load(this).launcherSettingsButton) findViewById(R.id.reorderChoice).setVisibility(View.VISIBLE);
         for (int i = 0; i < columnChoices.length; i++) {
             columnChoices[i].setSelected(columns == i + 4);
         }
