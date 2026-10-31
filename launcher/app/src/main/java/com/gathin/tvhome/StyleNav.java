@@ -37,6 +37,36 @@ final class StyleNav {
     }
 
     /**
+     * Packs tiles of {columns wide, rows high} column by column, always into the first free place, so a small tile
+     * fills any hole a bigger one left; a tile never
+     * straddles two groups of groupColumns. Returns each tile's {column, row}.
+     */
+    static int[][] pack(int[][] spans, int rows, int groupColumns) {
+        java.util.Set<Long> taken = new java.util.HashSet<>();
+        int[][] places = new int[spans.length][];
+        for (int i = 0; i < spans.length; i++) {
+            int w = spans[i][0], h = spans[i][1];
+            search:
+            for (int x = 0; ; x++) {
+                if (x % groupColumns + w > groupColumns) continue;
+                for (int y = 0; y + h <= rows; y++) {
+                    boolean free = true;
+                    for (int a = 0; a < w && free; a++) {
+                        for (int b = 0; b < h && free; b++) free = !taken.contains(x + a + ((long) (y + b) << 32));
+                    }
+                    if (!free) continue;
+                    for (int a = 0; a < w; a++) {
+                        for (int b = 0; b < h; b++) taken.add(x + a + ((long) (y + b) << 32));
+                    }
+                    places[i] = new int[]{x, y};
+                    break search;
+                }
+            }
+        }
+        return places;
+    }
+
+    /**
      * The same for tiles of different sizes, each {x, y, width, height}: the closest tile on that side, one that lines
      * up with this one before any that does not. On a tie the earlier tile wins, so a press is always the same move.
      */

@@ -50,6 +50,8 @@
     <string name="style_label">סגנון מסך הבית</string>
     <string name="style_roku">Roku קלאסי</string>
     <string name="style_roku_new">Roku חדש</string>
+    <string name="style_group_main">עיקרי</string>
+    <string name="style_group_apps">אפליקציות</string>
     <string name="style_home">בית</string>
     <string name="style_tv_settings">הגדרות טלוויזיה</string>
     <string name="style_options">אפשרויות</string>

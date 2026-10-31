@@ -63,6 +63,9 @@ final class StyledHome {
         final TextView name;
         AppAdapter.Entry entry;
         int x, y, w, h, section;
+        /** A tile that is no app (Metro's Inputs and Settings tiles). */
+        Runnable action;
+        String key;
 
         Cell(FrameLayout view, ImageView art, TextView name) {
             this.view = view;
@@ -72,7 +75,7 @@ final class StyledHome {
     }
 
     private final MainActivity activity;
-    private final boolean wii, classic, modern;
+    private final boolean wii, classic, modern, metro;
     private final boolean animate;
     private final float density;
     private final int width, height;
@@ -97,7 +100,10 @@ final class StyledHome {
     private android.graphics.Bitmap skyline;
     private final List<TextView> railNames = new ArrayList<>();
     private final TextView[] sectionLabels = new TextView[2];
-    private boolean menuOpen, is24;
+    private boolean menuOpen, is24, metroEntered;
+    private android.widget.HorizontalScrollView metroScroll;
+    private FrameLayout metroGrid;
+    private Typeface metroLabelFace;
     private FrameLayout rokuGrid;
     private ScrollView rokuScroll;
     private View arrowLeft, arrowRight;
@@ -118,6 +124,7 @@ final class StyledHome {
         wii = LauncherStyle.WII.equals(style);
         classic = LauncherStyle.ROKU.equals(style);
         modern = LauncherStyle.ROKU_NEW.equals(style);
+        metro = LauncherStyle.METRO.equals(style);
         animate = cfg.animations && !cfg.reducedMotion;
         DisplayMetrics metrics = activity.getResources().getDisplayMetrics();
         density = metrics.density;
@@ -135,6 +142,7 @@ final class StyledHome {
         sounds = wii ? new StyleSounds() : null;
         if (wii) buildWii(cfg);
         else if (classic) buildClassic(cfg);
+        else if (metro) buildMetro();
         else buildModern();
         ClockFormat.apply(root, cfg.clockFormat);
     }
@@ -171,6 +179,7 @@ final class StyledHome {
         focusKey = null;
         buttonFocus = classic ? 0 : -1;
         if (rokuScroll != null) rokuScroll.scrollTo(0, 0);
+        if (metroScroll != null) metroScroll.scrollTo(0, 0);
         if (classic) setMenuOpen(true);
         if (modern) setRailOpen(false);
         if (loaded) restoreFocus();
@@ -184,6 +193,14 @@ final class StyledHome {
             case KeyEvent.KEYCODE_DPAD_RIGHT: dx = 1; break;
             case KeyEvent.KEYCODE_DPAD_UP: dy = -1; break;
             case KeyEvent.KEYCODE_DPAD_DOWN: dy = 1; break;
+            case KeyEvent.KEYCODE_DPAD_CENTER:
+            case KeyEvent.KEYCODE_ENTER:
+                // Metro's press: the tile gives way under the finger.
+                if (metro && animate && focus < cells.size()) {
+                    float scale = event.getAction() == KeyEvent.ACTION_DOWN ? .96f : 1.04f;
+                    cells.get(focus).view.animate().scaleX(scale).scaleY(scale).setDuration(90).start();
+                }
+                return false;
             case KeyEvent.KEYCODE_MENU:
                 // The options key: on every style a direct way into the settings, as the classic corner advertises.
                 if (event.getAction() == KeyEvent.ACTION_UP && !event.isCanceled()) activity.styledLauncherSettings();
@@ -201,7 +218,7 @@ final class StyledHome {
             moveInButtons(dx, dy);
             return;
         }
-        int next = modern ? StyleNav.nearest(cellRects(), focus, dx, dy)
+        int next = modern || metro ? StyleNav.nearest(cellRects(), focus, dx, dy)
                 : StyleNav.move(focus, entries.size(), wii ? WII_COLUMNS : CLASSIC_COLUMNS, wii ? WII_PAGE : 0, dx, dy);
         if (next != StyleNav.OUT) {
             boolean turned = wii && next / WII_PAGE != page;
@@ -210,7 +227,7 @@ final class StyledHome {
         } else if (wii && dy > 0) {
             focusButton(focus % WII_COLUMNS < WII_COLUMNS / 2 ? 0 : 1);
             play(StyleSounds.TICK);
-        } else if (!wii && dx < 0) {
+        } else if ((classic || modern) && dx < 0) {
             if (classic) setMenuOpen(true);
             else setRailOpen(true);
             focusButton(0);
@@ -258,7 +275,7 @@ final class StyledHome {
     private void focusTile(int index) {
         buttonFocus = -1;
         focus = index;
-        focusKey = entries.get(index).component.flattenToShortString();
+        focusKey = metro ? cells.get(index).key : entries.get(index).component.flattenToShortString();
         if (wii && index / WII_PAGE != page) {
             int direction = index / WII_PAGE > page ? 1 : -1;
             showPage(index / WII_PAGE);
@@ -271,6 +288,10 @@ final class StyledHome {
         Cell cell = cells.get(wii ? index % WII_PAGE : index);
         cell.view.requestFocus();
         if (wii) return;
+        if (metro) {
+            keepVisibleSideways(cell);
+            return;
+        }
         keepVisible(cell);
         updateSidePanel(cell);
         if (classic) {
@@ -292,6 +313,12 @@ final class StyledHome {
         if (buttonFocus >= 0) {
             focusButton(buttonFocus);
             if (modern) dimOthers();
+        } else if (metro) {
+            if (!cells.isEmpty()) {
+                int index = -1;
+                for (int i = 0; i < cells.size(); i++) if (cells.get(i).key.equals(focusKey)) index = i;
+                focusTile(index >= 0 ? index : Math.min(focus, cells.size() - 1));
+            }
         } else if (entries.isEmpty()) focusButton(0);
         else {
             int index = indexOf(focusKey);
@@ -328,6 +355,8 @@ final class StyledHome {
             showPage(page);
         } else if (classic) {
             fillClassic();
+        } else if (metro) {
+            fillMetro();
         } else {
             fillModern();
         }
@@ -382,6 +411,10 @@ final class StyledHome {
     }
 
     private void open(Cell cell) {
+        if (cell.action != null) {
+            cell.action.run();
+            return;
+        }
         if (cell.entry == null) return;
         play(StyleSounds.SELECT);
         model.launch(cell.entry);
@@ -409,7 +442,7 @@ final class StyledHome {
     }
 
     private float cornerDp() {
-        return wii ? 12.5f : 3;
+        return wii ? 12.5f : metro ? 0 : 3;
     }
 
     private Drawable ring() {
@@ -464,7 +497,7 @@ final class StyledHome {
         final float grown = classic ? 1.1f : 1.04f;
         card.setOnFocusChangeListener((v, focused) -> {
             // Also on a cell a page turn has just emptied: it was focused, and must not stay enlarged.
-            Drawable ring = focused && cell.entry != null ? ring() : null;
+            Drawable ring = focused && (cell.entry != null || cell.action != null) ? ring() : null;
             v.setForeground(ring != null ? ring : wii ? wiiEdge() : null);
             if (wii) {
                 stopPulse();
@@ -713,6 +746,174 @@ final class StyledHome {
         lp.bottomMargin = py(56);
         spot.addView(spotName, lp);
         root.addView(spot, at(w, h, x, y));
+    }
+
+    // ---- Metro ----------------------------------------------------------------------------------------
+
+    /** One group, six columns by four rows with no hole left: the sizes of the Windows 8 screens, mixed. */
+    private static final int[][] METRO_GROUP = {{2, 2}, {2, 1}, {2, 1}, {2, 1}, {1, 1}, {1, 1}, {1, 1}, {1, 1}, {2, 1},
+            {2, 2}, {1, 1}, {1, 1}, {1, 1}, {1, 1}};
+
+    private void buildMetro() {
+        root.setBackground(new MetroSkin.Backdrop());
+        activity.getWindow().setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(MetroSkin.BACKGROUND));
+        Typeface thin = activity.getResources().getFont(R.font.selawik_light);
+        metroLabelFace = activity.getResources().getFont(R.font.selawik_regular);
+        root.addView(text(activity.getString(R.string.style_home), 78, Color.WHITE, thin, Gravity.CENTER_VERTICAL),
+                at(px(800), py(110), px(MetroSkin.LEFT), py(57)));
+        TextClock time = new TextClock(activity);
+        time.setFormat12Hour("h:mm a");
+        time.setFormat24Hour("H:mm");
+        time.setTextSize(TypedValue.COMPLEX_UNIT_PX, py(38));
+        time.setTextColor(Color.WHITE);
+        time.setTypeface(thin);
+        time.setSingleLine(true);
+        time.setGravity(Gravity.CENTER_VERTICAL | Gravity.END);
+        root.addView(time, at(px(500), py(70), px(1355), py(77)));
+
+        metroScroll = new android.widget.HorizontalScrollView(activity);
+        metroScroll.setClipChildren(false);
+        metroScroll.setClipToPadding(false);
+        metroScroll.setHorizontalScrollBarEnabled(false);
+        metroScroll.setSmoothScrollingEnabled(animate);
+        metroScroll.setFocusable(false);
+        metroGrid = new FrameLayout(activity);
+        metroGrid.setClipChildren(false);
+        metroScroll.addView(metroGrid, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.MATCH_PARENT));
+        root.addView(metroScroll, at(width, height - py(200), 0, py(200)));
+    }
+
+    private void fillMetro() {
+        metroGrid.removeAllViews();
+        cells.clear();
+        // Inputs and the settings stay in the first screenful, between the apps, as plain coloured tiles.
+        int apps = entries.size(), total = apps + 3, utilitiesAt = Math.min(3, apps);
+        int[][] spans = new int[total][];
+        for (int i = 0; i < total; i++) {
+            // The Inputs tile and the two settings tiles take the group's 2x1 and two squares in the 4th to 6th places.
+            spans[i] = METRO_GROUP[i % METRO_GROUP.length];
+        }
+        int[][] places = StyleNav.pack(spans, MetroSkin.ROWS, MetroSkin.GROUP_COLUMNS);
+        int app = 0, rightEdge = 0, groups = 0;
+        for (int i = 0; i < total; i++) {
+            int column = places[i][0], row = places[i][1];
+            int group = column / MetroSkin.GROUP_COLUMNS;
+            if (group >= groups) {
+                // A small heading above each group, as the screens have.
+                groups = group + 1;
+                TextView heading = text(activity.getString(group == 0 ? R.string.style_group_main : R.string.style_group_apps),
+                        28, Color.WHITE, metroLabelFace, Gravity.CENTER_VERTICAL);
+                metroGrid.addView(heading, at(px(500), py(40), px(MetroSkin.LEFT + column * MetroSkin.PITCH + group * MetroSkin.GROUP_GAP),
+                        py(MetroSkin.TOP - 46) - py(200)));
+            }
+            int w = px(spans[i][0] * MetroSkin.PITCH - (MetroSkin.PITCH - MetroSkin.UNIT));
+            int h = py(spans[i][1] * MetroSkin.PITCH - (MetroSkin.PITCH - MetroSkin.UNIT));
+            int x = px(MetroSkin.LEFT + column * MetroSkin.PITCH + group * MetroSkin.GROUP_GAP);
+            int y = py(MetroSkin.TOP + row * MetroSkin.PITCH) - py(200);
+            Cell cell = newCell(w, h);
+            place(cell, x, y, w, h);
+            cells.add(cell);
+            metroGrid.addView(cell.view);
+            rightEdge = Math.max(rightEdge, x + w);
+            metroLabel(cell, h);
+            if (i >= utilitiesAt && i < utilitiesAt + 3) bindMetroUtility(cell, i - utilitiesAt);
+            else bindMetroApp(cell, entries.get(app++), i);
+            if (animate && !metroEntered) {
+                // Windows 8's entrance: the tiles slide in from the right, column by column.
+                cell.view.setTranslationX(px(180));
+                cell.view.setAlpha(0f);
+                cell.view.animate().translationX(0).alpha(1f).setStartDelay(column * 22L).setDuration(320)
+                        .setInterpolator(new android.view.animation.DecelerateInterpolator(1.8f)).start();
+            }
+        }
+        metroEntered = true;
+        View end = new View(activity);
+        metroGrid.addView(end, at(px(MetroSkin.LEFT), 1, rightEdge, 0));
+    }
+
+    private void metroLabel(Cell cell, int h) {
+        cell.name.setGravity(Gravity.START | Gravity.BOTTOM);
+        cell.name.setTypeface(metroLabelFace);
+        cell.name.setTextSize(TypedValue.COMPLEX_UNIT_PX, py(20));
+        cell.name.setPadding(px(13), 0, px(10), py(9));
+        FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) cell.name.getLayoutParams();
+        lp.bottomMargin = 0;
+        cell.name.setLayoutParams(lp);
+        cell.name.setVisibility(View.VISIBLE);
+    }
+
+    private void bindMetroUtility(Cell cell, int which) {
+        int[] icons = {R.drawable.ic_input, R.drawable.ic_settings, R.drawable.ic_livetv};
+        int[] labels = {R.string.inputs, R.string.settings, R.string.style_tv_settings};
+        Runnable[] actions = {activity::styledInputs, activity::styledLauncherSettings, activity::styledTvSettings};
+        cell.action = actions[which];
+        cell.key = "utility:" + which;
+        cell.view.setBackground(metroTint(MetroSkin.COLORS[which]));
+        cell.art.setImageResource(icons[which]);
+        cell.art.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        int pad = py(44);
+        cell.art.setPadding(pad, pad, pad, pad);
+        cell.name.setText(labels[which]);
+        cell.name.setTextColor(Color.WHITE);
+        cell.view.setFocusable(true);
+        cell.view.setContentDescription(activity.getString(labels[which]));
+        if (which == 0) cell.view.setId(R.id.btnInputs);
+    }
+
+    /** Flat, with the barely visible left-to-right lift the tiles have on the original. */
+    private static Drawable metroTint(int color) {
+        int lighter = android.graphics.Color.rgb(Math.min(255, Color.red(color) + 12),
+                Math.min(255, Color.green(color) + 12), Math.min(255, Color.blue(color) + 12));
+        return new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT, new int[]{color, lighter});
+    }
+
+    /**
+     * An app's own banner fills the tile. A wide tile is about the banner's shape; square ones would have to lose most
+     * of the logo to a crop, so there the banner stays whole and carries on past its edges, with no join.
+     */
+    private void bindMetroApp(Cell cell, AppAdapter.Entry entry, int index) {
+        cell.entry = entry;
+        cell.key = entry.component.flattenToShortString();
+        cell.view.setFocusable(true);
+        cell.view.setContentDescription(entry.label);
+        cell.name.setText(entry.label);
+        if (entry.banner == null) {
+            cell.view.setBackground(metroTint(MetroSkin.COLORS[index % MetroSkin.COLORS.length]));
+            cell.art.setImageDrawable(entry.icon);
+            cell.art.setScaleType(ImageView.ScaleType.FIT_CENTER);
+            int pad = cell.h / 4;
+            cell.art.setPadding(pad, pad, pad, pad);
+            cell.name.setTextColor(Color.WHITE);
+            return;
+        }
+        RokuSkin.Edges edges = edgeCache.get(entry.pkg);
+        if (edges == null) {
+            edges = RokuSkin.edges(entry.banner);
+            edgeCache.put(entry.pkg, edges);
+        }
+        boolean wide = (float) cell.w / cell.h > 1.6f;
+        if (wide) {
+            cell.art.setScaleType(ImageView.ScaleType.CENTER_CROP);
+            cell.art.setImageDrawable(entry.banner);
+            cell.view.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
+                    new int[]{edges.top, edges.bottom}));
+        } else {
+            showExtended(cell.art, cell.view, entry);
+        }
+        // A banner already carries the app's name, often along its bottom edge, where a label would land on top of it.
+        cell.name.setVisibility(View.GONE);
+    }
+
+    private void keepVisibleSideways(Cell cell) {
+        int window = metroScroll.getWidth();
+        if (window <= 0) return;
+        int x = metroScroll.getScrollX();
+        int margin = px(MetroSkin.LEFT);
+        if (cell.x - px(40) < x) x = cell.x <= margin ? 0 : cell.x - margin;
+        else if (cell.x + cell.w + px(40) > x + window) x = cell.x + cell.w + margin - window;
+        if (animate) metroScroll.smoothScrollTo(x, 0);
+        else metroScroll.scrollTo(x, 0);
     }
 
     // ---- classic Roku ---------------------------------------------------------------------------------

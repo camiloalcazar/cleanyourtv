@@ -39,6 +39,7 @@
             <TextView android:id="@+id/styleWii" style="@style/SettingsColumnChoice" android:text="@string/style_wii" />
             <TextView android:id="@+id/styleRoku" style="@style/SettingsColumnChoice" android:text="@string/style_roku" />
             <TextView android:id="@+id/styleRokuNew" style="@style/SettingsColumnChoice" android:text="@string/style_roku_new" />
+            <TextView android:id="@+id/styleMetro" style="@style/SettingsColumnChoice" android:text="@string/style_metro" />
         </LinearLayout>
 
         <TextView

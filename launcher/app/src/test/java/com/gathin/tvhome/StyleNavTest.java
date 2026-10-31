@@ -96,6 +96,24 @@ public class StyleNavTest {
         assertEquals(StyleNav.OUT, StyleNav.nearest(MODERN, 9, 0, 1));
     }
 
+    @Test public void metroTilesPackIntoColumnsWithoutOverlap() {
+        int[][] spans = {{2, 2}, {2, 1}, {2, 1}, {1, 1}, {1, 1}, {2, 1}, {2, 1}, {1, 1}, {1, 1}, {2, 2}, {2, 2}};
+        int[][] places = StyleNav.pack(spans, 4, 6);
+        java.util.Set<String> used = new java.util.HashSet<>();
+        for (int i = 0; i < spans.length; i++) {
+            assertTrue(places[i][1] + spans[i][1] <= 4);
+            assertTrue(places[i][0] % 6 + spans[i][0] <= 6);
+            for (int a = 0; a < spans[i][0]; a++) {
+                for (int b = 0; b < spans[i][1]; b++) {
+                    assertTrue(used.add((places[i][0] + a) + "," + (places[i][1] + b)));
+                }
+            }
+        }
+        assertEquals(0, places[0][0]);
+        assertEquals(0, places[0][1]);
+        assertEquals(2, places[1][1]);
+    }
+
     @Test public void anUnknownStyleIsTheDefaultLook() {
         assertEquals(LauncherStyle.WII, LauncherStyle.normalize("wii"));
         assertEquals(LauncherStyle.ROKU, LauncherStyle.normalize("roku"));

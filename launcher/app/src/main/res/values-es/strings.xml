@@ -44,6 +44,8 @@
     <string name="dream_name">Reloj</string>
     <string name="launcher_settings">Ajustes del lanzador</string>
     <string name="style_label">Estilo de la pantalla de inicio</string>
+    <string name="style_group_main">Esenciales</string>
+    <string name="style_group_apps">Aplicaciones</string>
     <string name="style_home">Inicio</string>
     <string name="style_tv_settings">Ajustes de TV</string>
     <string name="style_roku">Roku clásico</string>

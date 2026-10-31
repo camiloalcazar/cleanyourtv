@@ -52,8 +52,11 @@
     <string name="style_label">Home screen style</string>
     <string name="style_apple" translatable="false">Apple TV</string>
     <string name="style_wii" translatable="false">Wii</string>
+    <string name="style_metro" translatable="false">Metro</string>
     <string name="style_roku">Roku classic</string>
     <string name="style_roku_new">Roku new</string>
+    <string name="style_group_main">Main</string>
+    <string name="style_group_apps">Apps</string>
     <string name="style_home">Home</string>
     <string name="style_tv_settings">TV settings</string>
     <string name="style_options">Options</string>
