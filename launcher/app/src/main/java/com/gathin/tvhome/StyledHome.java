@@ -995,18 +995,20 @@ final class StyledHome {
         bottomBar.setBackgroundColor(GRID_BAR);
         root.addView(bottomBar, at(width, bottom, 0, height - bottom));
 
-        // The launcher's own mark on the yellow circle: a small TV.
+        // The launcher's own mark: a yellow TV on black, with the style's name beside it.
         ImageView circle = new ImageView(activity);
         circle.setImageResource(R.drawable.ic_livetv);
-        circle.setColorFilter(0xFF111111);
-        circle.setPadding(py(15), py(15), py(15), py(15));
-        gridFocusLook(circle, GRID_YELLOW, 70);
+        circle.setColorFilter(GRID_YELLOW);
+        circle.setPadding(py(13), py(13), py(13), py(13));
+        gridFocusLook(circle, Color.BLACK, 70);
         root.addView(circle, at(py(70), py(70), px(47), py(25)));
         click(circle, () -> activity.styledQuickMenu(circle));
         circle.setContentDescription(activity.getString(R.string.settings));
 
         gridSearch = gridChip(R.drawable.ic_search, activity.getString(R.string.style_search_hint));
-        root.addView(gridSearch, at(px(1320), py(68), px(153), py(26)));
+        root.addView(gridSearch, at(px(1173), py(68), px(300), py(26)));
+        root.addView(text(activity.getString(R.string.style_grid_name), 38, Color.WHITE,
+                Typeface.create(medium, Typeface.BOLD), Gravity.CENTER_VERTICAL), at(px(170), py(70), px(128), py(25)));
         click(gridSearch, this::askGridSearch);
 
         gridOnline = text("", 28, GRID_YELLOW, medium, Gravity.CENTER);

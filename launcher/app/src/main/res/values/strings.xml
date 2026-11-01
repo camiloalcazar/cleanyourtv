@@ -70,6 +70,7 @@
     <string name="style_favorite_added">%1$s added to favorites</string>
     <string name="style_favorite_removed">%1$s removed from favorites</string>
     <string name="style_search_hint">Search apps…</string>
+    <string name="style_grid_name" translatable="false">GridTV</string>
     <string name="style_home">Home</string>
     <string name="style_tv_settings">TV settings</string>
     <string name="style_options">Options</string>
