@@ -90,6 +90,7 @@
     <string name="style_opened_one">Opened once</string>
     <string name="style_opened_many">Opened %1$d times</string>
     <string name="style_opened_none">Not opened yet</string>
+    <string name="style_tube_name" translatable="false">CanalTV</string>
     <string name="style_home">Home</string>
     <string name="style_tv_settings">TV settings</string>
     <string name="style_options">Options</string>

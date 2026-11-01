@@ -1394,7 +1394,14 @@ final class StyledHome {
         time.setTypeface(regular);
         time.setSingleLine(true);
         time.setGravity(Gravity.CENTER_VERTICAL | Gravity.END);
-        root.addView(time, at(px(300), py(62), px(1560), py(48)));
+        root.addView(time, at(px(240), py(62), px(1190), py(48)));
+        // The style's own mark, where the original has its brand: a red TV and a name of its own.
+        ImageView mark = new ImageView(activity);
+        mark.setImageResource(R.drawable.ic_livetv);
+        mark.setColorFilter(0xFFE53935);
+        root.addView(mark, at(py(56), py(56), px(1490), py(50)));
+        root.addView(text(activity.getString(R.string.style_tube_name), 40, Color.WHITE,
+                Typeface.create(medium, Typeface.BOLD), Gravity.CENTER_VERTICAL), at(px(300), py(62), px(1560), py(48)));
         paintTubePills();
     }
 
@@ -1484,7 +1491,8 @@ final class StyledHome {
             for (String[] input : activity.styledInputList()) {
                 final String id = input[0];
                 Cell cell = tubeCell(cells.size());
-                bindTubeAction(cell, "input:" + id, input[1], R.drawable.ic_input, () -> activity.styledOpenInput(id));
+                int icon = input[1].toUpperCase(Locale.ROOT).contains("HDMI") ? R.drawable.ic_input : R.drawable.ic_av;
+                bindTubeAction(cell, "input:" + id, input[1], icon, () -> activity.styledOpenInput(id));
             }
             if (activity.styledHasLiveTv()) {
                 Cell cell = tubeCell(cells.size());
