@@ -28,7 +28,7 @@ public final class LauncherSettingsActivity extends Activity {
 
     static final String EXTRA_REORDER = "com.gathin.tvhome.extra.REORDER_FROM_SETTINGS";
     private SharedPreferences choices;
-    private static final String[] STYLES = {LauncherStyle.APPLE, LauncherStyle.WII, LauncherStyle.ROKU, LauncherStyle.ROKU_NEW, LauncherStyle.METRO};
+    private static final String[] STYLES = {LauncherStyle.APPLE, LauncherStyle.WII, LauncherStyle.ROKU, LauncherStyle.ROKU_NEW, LauncherStyle.METRO, LauncherStyle.GRID};
     private final TextView[] styleChoices = new TextView[STYLES.length];
     private String style;
     private final TextView[] columnChoices = new TextView[4];
@@ -56,7 +56,7 @@ public final class LauncherSettingsActivity extends Activity {
         choices = getSharedPreferences(Config.SETTINGS_NAME, MODE_PRIVATE);
         Config config = Config.load(this);
         style = LauncherStyle.read(this);
-        int[] styleIds = {R.id.styleApple, R.id.styleWii, R.id.styleRoku, R.id.styleRokuNew, R.id.styleMetro};
+        int[] styleIds = {R.id.styleApple, R.id.styleWii, R.id.styleRoku, R.id.styleRokuNew, R.id.styleMetro, R.id.styleGrid};
         for (int i = 0; i < styleIds.length; i++) {
             final String value = STYLES[i];
             styleChoices[i] = findViewById(styleIds[i]);

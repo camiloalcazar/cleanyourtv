@@ -40,6 +40,7 @@
             <TextView android:id="@+id/styleRoku" style="@style/SettingsColumnChoice" android:text="@string/style_roku" />
             <TextView android:id="@+id/styleRokuNew" style="@style/SettingsColumnChoice" android:text="@string/style_roku_new" />
             <TextView android:id="@+id/styleMetro" style="@style/SettingsColumnChoice" android:text="@string/style_metro" />
+            <TextView android:id="@+id/styleGrid" style="@style/SettingsColumnChoice" android:text="@string/style_grid" />
         </LinearLayout>
 
         <TextView

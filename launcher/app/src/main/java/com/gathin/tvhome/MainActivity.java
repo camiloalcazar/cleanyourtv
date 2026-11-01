@@ -3384,6 +3384,26 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         startActivityForResult(new Intent(this, LauncherSettingsActivity.class), LAUNCHER_SETTINGS_REQUEST);
     }
 
+    /** The grid style's yellow circle: a small menu with the ways out of Home. */
+    void styledQuickMenu(View anchor) {
+        View panel = getLayoutInflater().inflate(R.layout.popup_inputs, root, false);
+        LinearLayout rows = panel.findViewById(R.id.rows);
+        PopupWindow popup = glassPopup(panel, (int) (240 * density));
+        addSettingsMenuRow(rows, popup, R.string.inputs, this::showInputs);
+        addSettingsMenuRow(rows, popup, R.string.wifi, this::styledNetwork);
+        addSettingsMenuRow(rows, popup, R.string.tv_settings, this::styledTvSettings);
+        addSettingsMenuRow(rows, popup, R.string.launcher_settings, this::styledLauncherSettings);
+        panel.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED);
+        popup.setWidth(Math.max((int) (240 * density), panel.getMeasuredWidth()));
+        popup.setHeight(panel.getMeasuredHeight());
+        dropIn(popup, panel, anchor, Gravity.START);
+        rows.getChildAt(0).requestFocus();
+    }
+
+    void styledNetwork() {
+        open(systemIntent(Settings.ACTION_WIFI_SETTINGS));
+    }
+
     void styledTvSettings() {
         open(systemIntent(Settings.ACTION_SETTINGS));
     }

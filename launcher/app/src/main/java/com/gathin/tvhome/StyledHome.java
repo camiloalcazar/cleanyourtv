@@ -29,6 +29,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -39,7 +40,9 @@ import java.util.Map;
  */
 final class StyledHome {
     private static final String TAG = "StyledHome";
-    private static final int WII_COLUMNS = 4, WII_PAGE = 12, CLASSIC_COLUMNS = 4;
+    private static final int WII_COLUMNS = 4, WII_PAGE = 12, CLASSIC_COLUMNS = 4, GRID_COLUMNS = 6;
+    /** The grid style's buttons: the top bar first (circle, search, status, settings), then the bottom tabs. */
+    private static final int GRID_SEARCH = 1, GRID_TABS = 4, GRID_YELLOW = 0xFFFFCC00, GRID_BAR = 0xFF111111;
     private static final int WII_TEXT = 0xFF6F767B;
 
     /** A style whose screen cannot be built falls back to the default look: a TV must never lose its Home. */
@@ -66,6 +69,8 @@ final class StyledHome {
         /** A tile that is no app (Metro's Inputs and Settings tiles). */
         Runnable action;
         String key;
+        TextView sub, star;
+        View dot;
 
         Cell(FrameLayout view, ImageView art, TextView name) {
             this.view = view;
@@ -75,7 +80,7 @@ final class StyledHome {
     }
 
     private final MainActivity activity;
-    private final boolean wii, classic, modern, metro;
+    private final boolean wii, classic, modern, metro, grid;
     private final boolean animate;
     private final float density;
     private final int width, height;
@@ -103,6 +108,15 @@ final class StyledHome {
     private boolean menuOpen, is24, metroEntered;
     private android.widget.HorizontalScrollView metroScroll;
     private FrameLayout metroGrid;
+    private final List<AppAdapter.Entry> allEntries = new ArrayList<>();
+    private AppUsage usage;
+    private AppFavorites favorites;
+    private int gridTab;
+    private String gridFilter = "";
+    private TextView gridSearch, gridOnline, gridEmpty;
+    private boolean gridIsOnline;
+    private final Map<String, Drawable> blurCache = new HashMap<>();
+    private final List<TextView> gridTabs = new ArrayList<>();
     private Typeface metroLabelFace;
     private FrameLayout rokuGrid;
     private ScrollView rokuScroll;
@@ -125,6 +139,7 @@ final class StyledHome {
         classic = LauncherStyle.ROKU.equals(style);
         modern = LauncherStyle.ROKU_NEW.equals(style);
         metro = LauncherStyle.METRO.equals(style);
+        grid = LauncherStyle.GRID.equals(style);
         animate = cfg.animations && !cfg.reducedMotion;
         DisplayMetrics metrics = activity.getResources().getDisplayMetrics();
         density = metrics.density;
@@ -143,6 +158,7 @@ final class StyledHome {
         if (wii) buildWii(cfg);
         else if (classic) buildClassic(cfg);
         else if (metro) buildMetro();
+        else if (grid) buildGrid(cfg);
         else buildModern();
         ClockFormat.apply(root, cfg.clockFormat);
     }
@@ -154,6 +170,8 @@ final class StyledHome {
         ChangedPackages changed = activity.getPackageManager().getChangedPackages(packageSequence);
         if (changed != null) packageSequence = changed.getSequenceNumber();
         if (!loaded || changed != null) reload();
+        else if (grid) refreshUsage();
+        if (grid) updateOnlinePill();
         root.post(this::restoreFocus);
     }
 
@@ -168,6 +186,7 @@ final class StyledHome {
         entries.clear();
         model.clear();
         bannerCache.clear();
+        blurCache.clear();
         edgeCache.clear();
         if (spotArt != null) spotArt.setImageDrawable(null);
         loaded = false;
@@ -187,6 +206,16 @@ final class StyledHome {
 
     /** D-pad directions go through {@link StyleNav}, so a press moves one step and never falls through. */
     boolean onKey(KeyEvent event) {
+        int code = event.getKeyCode();
+        boolean ok = code == KeyEvent.KEYCODE_DPAD_CENTER || code == KeyEvent.KEYCODE_ENTER;
+        boolean arrow = code == KeyEvent.KEYCODE_DPAD_LEFT || code == KeyEvent.KEYCODE_DPAD_RIGHT
+                || code == KeyEvent.KEYCODE_DPAD_UP || code == KeyEvent.KEYCODE_DPAD_DOWN;
+        // A press while the screen is being rebuilt, with the focus not where this class left it, only puts the focus
+        // back. What the viewer sees selected is the only thing OK may ever open.
+        if ((ok || arrow) && loaded && !focusInSync()) {
+            if (event.getAction() == KeyEvent.ACTION_DOWN) restoreFocus();
+            return true;
+        }
         int dx = 0, dy = 0;
         switch (event.getKeyCode()) {
             case KeyEvent.KEYCODE_DPAD_LEFT: dx = -1; break;
@@ -203,7 +232,10 @@ final class StyledHome {
                 return false;
             case KeyEvent.KEYCODE_MENU:
                 // The options key: on every style a direct way into the settings, as the classic corner advertises.
-                if (event.getAction() == KeyEvent.ACTION_UP && !event.isCanceled()) activity.styledLauncherSettings();
+                if (event.getAction() == KeyEvent.ACTION_UP && !event.isCanceled()) {
+                    if (grid && buttonFocus < 0 && focus < cells.size()) toggleFavorite(cells.get(focus));
+                    else activity.styledLauncherSettings();
+                }
                 return true;
             default: return false;
         }
@@ -219,7 +251,7 @@ final class StyledHome {
             return;
         }
         int next = modern || metro ? StyleNav.nearest(cellRects(), focus, dx, dy)
-                : StyleNav.move(focus, entries.size(), wii ? WII_COLUMNS : CLASSIC_COLUMNS, wii ? WII_PAGE : 0, dx, dy);
+                : StyleNav.move(focus, entries.size(), wii ? WII_COLUMNS : grid ? GRID_COLUMNS : CLASSIC_COLUMNS, wii ? WII_PAGE : 0, dx, dy);
         if (next != StyleNav.OUT) {
             boolean turned = wii && next / WII_PAGE != page;
             focusTile(next);
@@ -227,12 +259,22 @@ final class StyledHome {
         } else if (wii && dy > 0) {
             focusButton(focus % WII_COLUMNS < WII_COLUMNS / 2 ? 0 : 1);
             play(StyleSounds.TICK);
+        } else if (grid) {
+            if (dy < 0) focusButton(GRID_SEARCH);
+            else if (dy > 0) focusButton(GRID_TABS + gridTab);
         } else if ((classic || modern) && dx < 0) {
             if (classic) setMenuOpen(true);
             else setRailOpen(true);
             focusButton(0);
             if (modern) dimOthers();
         }
+    }
+
+    private boolean focusInSync() {
+        int cell = wii ? focus % WII_PAGE : focus;
+        View expected = buttonFocus >= 0 && buttonFocus < buttons.size() ? buttons.get(buttonFocus)
+                : cell < cells.size() ? cells.get(cell).view : null;
+        return expected == null || activity.getCurrentFocus() == expected;
     }
 
     private int[][] cellRects() {
@@ -245,6 +287,20 @@ final class StyledHome {
     }
 
     private void moveInButtons(int dx, int dy) {
+        if (grid) {
+            boolean top = buttonFocus < GRID_TABS;
+            if (dx != 0) {
+                int next = buttonFocus + dx;
+                if (next >= (top ? 0 : GRID_TABS) && next < (top ? GRID_TABS : buttons.size())) focusButton(next);
+            } else if (top && dy > 0) {
+                if (entries.isEmpty()) focusButton(GRID_TABS + gridTab);
+                else focusTile(Math.min(focus, entries.size() - 1));
+            } else if (!top && dy < 0) {
+                if (entries.isEmpty()) focusButton(GRID_SEARCH);
+                else focusTile(Math.min(focus, entries.size() - 1));
+            }
+            return;
+        }
         if (wii) {
             if (dy < 0 && !entries.isEmpty()) {
                 int start = page * WII_PAGE;
@@ -297,7 +353,7 @@ final class StyledHome {
         if (classic) {
             rokuLabel.setText(cell.entry.label);
             rokuCount.setText(activity.getString(R.string.style_item_of, index + 1, entries.size()));
-        } else {
+        } else if (modern) {
             dimOthers();
         }
     }
@@ -319,7 +375,7 @@ final class StyledHome {
                 for (int i = 0; i < cells.size(); i++) if (cells.get(i).key.equals(focusKey)) index = i;
                 focusTile(index >= 0 ? index : Math.min(focus, cells.size() - 1));
             }
-        } else if (entries.isEmpty()) focusButton(0);
+        } else if (entries.isEmpty()) focusButton(grid ? GRID_TABS + gridTab : 0);
         else {
             int index = indexOf(focusKey);
             focusTile(index >= 0 ? index : Math.min(focus, entries.size() - 1));
@@ -357,6 +413,10 @@ final class StyledHome {
             fillClassic();
         } else if (metro) {
             fillMetro();
+        } else if (grid) {
+            allEntries.clear();
+            allEntries.addAll(entries);
+            showGridView();
         } else {
             fillModern();
         }
@@ -442,11 +502,12 @@ final class StyledHome {
     }
 
     private float cornerDp() {
-        return wii ? 12.5f : metro ? 0 : 3;
+        return wii ? 12.5f : metro || grid ? 0 : 3;
     }
 
     private Drawable ring() {
         if (wii) return rounded(Color.TRANSPARENT, WiiSkin.SELECT_BLUE, 3, cornerDp() - 1.5f);
+        if (grid) return rounded(Color.TRANSPARENT, GRID_YELLOW, 3, 0);
         if (classic) return rounded(Color.TRANSPARENT, 0xFFD6D4DA, 5, .5f);
         // White, with a dark hairline inside it so that it also shows on a white banner.
         android.graphics.drawable.LayerDrawable frame = new android.graphics.drawable.LayerDrawable(new Drawable[]{
@@ -914,6 +975,316 @@ final class StyledHome {
         else if (cell.x + cell.w + px(40) > x + window) x = cell.x + cell.w + margin - window;
         if (animate) metroScroll.smoothScrollTo(x, 0);
         else metroScroll.scrollTo(x, 0);
+    }
+
+    // ---- the 6-column grid -----------------------------------------------------------------------------
+
+    private void buildGrid(Config cfg) {
+        root.setBackgroundColor(Color.BLACK);
+        activity.getWindow().setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(Color.BLACK));
+        favorites = new AppFavorites(activity, cfg.dockApps);
+        usage = new AppUsage(activity);
+        // Measured on the approved mock-up, scaled from its 1470 pixels of width.
+        int top = py(120), bottom = py(103);
+        buildScroller(0, top, width, height - top - bottom, 0);
+        rokuScroll.setPadding(0, 0, 0, 0);
+        View topBar = new View(activity);
+        topBar.setBackgroundColor(GRID_BAR);
+        root.addView(topBar, at(width, top, 0, 0));
+        View bottomBar = new View(activity);
+        bottomBar.setBackgroundColor(GRID_BAR);
+        root.addView(bottomBar, at(width, bottom, 0, height - bottom));
+
+        // The launcher's own mark on the yellow circle: a small TV.
+        ImageView circle = new ImageView(activity);
+        circle.setImageResource(R.drawable.ic_livetv);
+        circle.setColorFilter(0xFF111111);
+        circle.setPadding(py(15), py(15), py(15), py(15));
+        gridFocusLook(circle, GRID_YELLOW, 70);
+        root.addView(circle, at(py(70), py(70), px(47), py(25)));
+        click(circle, () -> activity.styledQuickMenu(circle));
+        circle.setContentDescription(activity.getString(R.string.settings));
+
+        gridSearch = gridChip(R.drawable.ic_search, activity.getString(R.string.style_search_hint));
+        root.addView(gridSearch, at(px(1320), py(68), px(153), py(26)));
+        click(gridSearch, this::askGridSearch);
+
+        gridOnline = text("", 28, GRID_YELLOW, medium, Gravity.CENTER);
+        root.addView(gridOnline, at(px(146), py(50), px(1497), py(35)));
+        click(gridOnline, activity::styledNetwork);
+        gridOnline.setOnFocusChangeListener((v, focused) -> paintOnlinePill());
+
+        ImageView gear = new ImageView(activity);
+        gear.setImageResource(R.drawable.ic_settings);
+        gear.setPadding(py(12), py(12), py(12), py(12));
+        gear.setContentDescription(activity.getString(R.string.settings));
+        gridFocusLook(gear, GRID_BAR, 60);
+        root.addView(gear, at(py(60), py(60), px(1824), py(30)));
+        click(gear, activity::styledLauncherSettings);
+
+        TextClock time = new TextClock(activity);
+        time.setFormat12Hour("h:mm a");
+        time.setFormat24Hour("H:mm");
+        time.setTextSize(TypedValue.COMPLEX_UNIT_PX, py(28));
+        time.setTextColor(0xFFCCCCCC);
+        time.setTypeface(regular);
+        time.setSingleLine(true);
+        time.setGravity(Gravity.CENTER);
+        root.addView(time, at(px(170), py(50), px(1650), py(35)));
+
+        buttons.add(circle);
+        buttons.add(gridSearch);
+        buttons.add(gridOnline);
+        buttons.add(gear);
+
+        int[] labels = {R.string.style_tab_apps, R.string.style_tab_recent, R.string.style_tab_favorites, R.string.inputs};
+        for (int i = 0; i < labels.length; i++) {
+            TextView tab = text(activity.getString(labels[i]), 27, 0xFF9A9A9A, regular, Gravity.CENTER);
+            root.addView(tab, at(width / labels.length, bottom, i * width / labels.length, height - bottom));
+            gridTabs.add(tab);
+            buttons.add(tab);
+            final int which = i;
+            if (i == 3) {
+                tab.setId(R.id.btnInputs);
+                click(tab, activity::styledInputs);
+            } else {
+                click(tab, () -> selectGridTab(which));
+            }
+            tab.setOnFocusChangeListener((v, focused) -> {
+                tab.setBackground(focused ? rounded(Color.TRANSPARENT, GRID_YELLOW, 2, 0) : null);
+            });
+        }
+        gridEmpty = text("", 30, 0xFF9A9A9A, regular, Gravity.CENTER);
+        gridEmpty.setVisibility(View.GONE);
+        root.addView(gridEmpty, at(width, py(60), 0, height / 2 - py(30)));
+        paintGridTabs();
+    }
+
+    private void gridFocusLook(View view, int fill, int sizePx) {
+        float radius = py(sizePx) / 2f / density;
+        view.setBackground(rounded(fill, 0, 0, radius));
+        view.setOnFocusChangeListener((v, focused) -> v.setBackground(
+                focused ? rounded(fill, focusEdge(fill), 2.5f, radius) : rounded(fill, 0, 0, radius)));
+    }
+
+    /** The yellow circle takes a white edge: yellow would not show on it. */
+    private static int focusEdge(int fill) {
+        return fill == GRID_YELLOW ? Color.WHITE : GRID_YELLOW;
+    }
+
+    private TextView gridChip(int icon, String label) {
+        TextView chip = text(label, 28, 0xFF8F8F8F, regular, Gravity.CENTER_VERTICAL);
+        chip.setPadding(px(30), 0, px(18), 0);
+        gridFocusLook(chip, 0xFF212121, 68);
+        return chip;
+    }
+
+    private void updateOnlinePill() {
+        android.net.ConnectivityManager manager = activity.getSystemService(android.net.ConnectivityManager.class);
+        gridIsOnline = manager != null && manager.getActiveNetwork() != null;
+        gridOnline.setText(gridIsOnline ? R.string.style_online : R.string.style_offline);
+        paintOnlinePill();
+    }
+
+    private void paintOnlinePill() {
+        int color = gridIsOnline ? GRID_YELLOW : 0xFF8F8F8F;
+        boolean focused = gridOnline.isFocused();
+        gridOnline.setTextColor(focused ? Color.BLACK : color);
+        gridOnline.setBackground(rounded(focused ? color : Color.TRANSPARENT, color, 1, py(25) / density));
+    }
+
+    private void askGridSearch() {
+        android.widget.EditText field = new android.widget.EditText(activity);
+        field.setSingleLine(true);
+        field.setText(gridFilter);
+        new android.app.AlertDialog.Builder(activity)
+                .setTitle(R.string.style_search)
+                .setView(field)
+                .setPositiveButton(android.R.string.ok, (d, w) -> applyGridFilter(field.getText().toString().trim()))
+                .setNegativeButton(android.R.string.cancel, (d, w) -> applyGridFilter(""))
+                .show();
+    }
+
+    private void applyGridFilter(String filter) {
+        gridFilter = filter;
+        gridSearch.setText(filter.isEmpty() ? activity.getString(R.string.style_search_hint) : filter);
+        focus = 0;
+        showGridView();
+        buttonFocus = entries.isEmpty() ? GRID_SEARCH : -1;
+        root.post(this::restoreFocus);
+    }
+
+    private void selectGridTab(int tab) {
+        if (tab == gridTab && tab != 1) return;
+        gridTab = tab;
+        focus = 0;
+        focusKey = null;
+        paintGridTabs();
+        showGridView();
+    }
+
+    private void paintGridTabs() {
+        int[] icons = {R.drawable.ic_grid, R.drawable.ic_recent, R.drawable.ic_star, R.drawable.ic_input};
+        int[] labels = {R.string.style_tab_apps, R.string.style_tab_recent, R.string.style_tab_favorites, R.string.inputs};
+        for (int i = 0; i < gridTabs.size(); i++) {
+            int color = i == gridTab ? GRID_YELLOW : 0xFF9A9A9A;
+            TextView tab = gridTabs.get(i);
+            tab.setTextColor(color);
+            tab.setTypeface(i == gridTab ? Typeface.create(medium, Typeface.BOLD) : regular);
+            Drawable icon = activity.getDrawable(icons[i]).mutate();
+            icon.setBounds(0, 0, py(30), py(30));
+            icon.setTint(color);
+            android.text.SpannableString text = new android.text.SpannableString("  " + activity.getString(labels[i]));
+            text.setSpan(new android.text.style.ImageSpan(icon, android.text.style.ImageSpan.ALIGN_BOTTOM), 0, 1, 0);
+            tab.setText(text);
+        }
+    }
+
+    /** Every app, the ones used so far with the latest first, or the favourites; narrowed by the search. */
+    private void showGridView() {
+        usage = new AppUsage(activity);
+        entries.clear();
+        Locale locale = Locale.getDefault();
+        String needle = gridFilter.toLowerCase(locale);
+        for (AppAdapter.Entry entry : allEntries) {
+            if (!needle.isEmpty() && !entry.label.toLowerCase(locale).contains(needle)) continue;
+            if (gridTab == 1 && usage.lastUsed(entry.pkg) <= 0) continue;
+            if (gridTab == 2 && !favorites.has(entry.pkg)) continue;
+            entries.add(entry);
+        }
+        if (gridTab == 1) {
+            Collections.sort(entries, (a, b) -> Long.compare(usage.lastUsed(b.pkg), usage.lastUsed(a.pkg)));
+        }
+        rokuGrid.removeAllViews();
+        cells.clear();
+        int pitch = width / GRID_COLUMNS;
+        int side = pitch - Math.max(1, px(2));
+        for (int i = 0; i < entries.size(); i++) {
+            Cell cell = gridCell(side);
+            place(cell, i % GRID_COLUMNS * pitch + 1, i / GRID_COLUMNS * pitch, side, side);
+            // The tiles at the edges grow inwards, so their whole yellow frame stays on screen.
+            int column = i % GRID_COLUMNS;
+            cell.view.setPivotX(column == 0 ? 0 : column == GRID_COLUMNS - 1 ? side : side / 2f);
+            cell.view.setPivotY(i < GRID_COLUMNS ? 0 : side / 2f);
+            cells.add(cell);
+            rokuGrid.addView(cell.view);
+            bindGrid(cell, entries.get(i));
+        }
+        rokuScroll.scrollTo(0, 0);
+        boolean empty = entries.isEmpty() && !allEntries.isEmpty();
+        gridEmpty.setVisibility(empty ? View.VISIBLE : View.GONE);
+        if (empty) gridEmpty.setText(gridTab == 2 ? R.string.style_empty_favorites : R.string.style_empty_recent);
+    }
+
+    /** A square tile: the banner, a dark gradient rising from below, the name, when it was last used, the marks. */
+    private Cell gridCell(int side) {
+        Cell cell = newCell(side, side);
+        View shade = new View(activity);
+        shade.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[]{0x00000000, 0xE6000000}));
+        cell.view.addView(shade, 1, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, side * 11 / 20, Gravity.BOTTOM));
+        cell.name.setGravity(Gravity.START);
+        cell.name.setTypeface(Typeface.create(medium, Typeface.BOLD));
+        cell.name.setTextSize(TypedValue.COMPLEX_UNIT_PX, py(27));
+        cell.name.setTextColor(Color.WHITE);
+        cell.name.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        FrameLayout.LayoutParams nameLp = (FrameLayout.LayoutParams) cell.name.getLayoutParams();
+        nameLp.gravity = Gravity.BOTTOM;
+        nameLp.bottomMargin = py(40);
+        nameLp.leftMargin = px(14);
+        nameLp.rightMargin = px(10);
+        cell.name.setLayoutParams(nameLp);
+        cell.sub = text("", 22, 0xFFD0D0D0, regular, Gravity.START);
+        FrameLayout.LayoutParams subLp = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM);
+        subLp.bottomMargin = py(12);
+        subLp.leftMargin = px(14);
+        cell.view.addView(cell.sub, subLp);
+        cell.dot = new View(activity);
+        GradientDrawable green = new GradientDrawable();
+        green.setShape(GradientDrawable.OVAL);
+        green.setColor(0xFF2ED573);
+        cell.dot.setBackground(green);
+        FrameLayout.LayoutParams dotLp = new FrameLayout.LayoutParams(py(14), py(14), Gravity.BOTTOM);
+        dotLp.leftMargin = px(14);
+        dotLp.bottomMargin = py(50);
+        cell.view.addView(cell.dot, dotLp);
+        cell.star = text("\u2605", 30, GRID_YELLOW, regular, Gravity.CENTER);
+        FrameLayout.LayoutParams starLp = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP | Gravity.END);
+        starLp.topMargin = py(10);
+        starLp.rightMargin = px(12);
+        cell.view.addView(cell.star, starLp);
+        cell.view.setOnLongClickListener(v -> {
+            toggleFavorite(cell);
+            return true;
+        });
+        return cell;
+    }
+
+    private void bindGrid(Cell cell, AppAdapter.Entry entry) {
+        cell.entry = entry;
+        cell.key = entry.component.flattenToShortString();
+        cell.view.setFocusable(true);
+        cell.view.setContentDescription(entry.label);
+        if (entry.banner != null) {
+            // The whole banner, centred across the width, never stretched or cropped, on a blur of itself.
+            Drawable blur = blurCache.get(entry.pkg);
+            if (blur == null) {
+                blur = RokuSkin.blurred(activity.getResources(), entry.banner);
+                blurCache.put(entry.pkg, blur);
+            }
+            cell.view.setBackground(blur.getConstantState().newDrawable().mutate());
+            cell.art.setScaleType(ImageView.ScaleType.FIT_CENTER);
+            cell.art.setImageDrawable(entry.banner);
+        } else {
+            cell.view.setBackgroundColor(0xFF232323);
+            cell.art.setScaleType(ImageView.ScaleType.FIT_CENTER);
+            cell.art.setImageDrawable(entry.icon);
+            cell.art.setPadding(cell.w / 4, cell.w / 6, cell.w / 4, cell.w / 3);
+        }
+        cell.name.setText(entry.label);
+        cell.name.setVisibility(View.VISIBLE);
+        showGridMarks(cell);
+    }
+
+    private void showGridMarks(Cell cell) {
+        long now = System.currentTimeMillis();
+        long then = usage.lastUsed(cell.entry.pkg);
+        String ago = AppUsage.ago(now, then);
+        cell.sub.setText(ago == null ? activity.getString(R.string.style_never) : ago);
+        boolean recent = AppUsage.recent(now, then);
+        cell.dot.setVisibility(recent ? View.VISIBLE : View.GONE);
+        FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) cell.name.getLayoutParams();
+        lp.leftMargin = recent ? px(36) : px(14);
+        cell.name.setLayoutParams(lp);
+        cell.star.setVisibility(favorites.has(cell.entry.pkg) ? View.VISIBLE : View.GONE);
+    }
+
+    /** Back on Home: an app may just have been used, so the times and the order of Recent may have changed. */
+    private void refreshUsage() {
+        if (gridTab == 1) {
+            showGridView();
+            return;
+        }
+        usage = new AppUsage(activity);
+        for (Cell cell : cells) if (cell.entry != null) showGridMarks(cell);
+    }
+
+    private void toggleFavorite(Cell cell) {
+        if (cell.entry == null) return;
+        boolean added = favorites.toggle(cell.entry.pkg);
+        android.widget.Toast.makeText(activity, activity.getString(
+                added ? R.string.style_favorite_added : R.string.style_favorite_removed, cell.entry.label),
+                android.widget.Toast.LENGTH_SHORT).show();
+        if (gridTab == 2 && !added) {
+            int keep = focus;
+            showGridView();
+            focus = Math.max(0, Math.min(keep, entries.size() - 1));
+            focusKey = null;
+            root.post(this::restoreFocus);
+        } else {
+            showGridMarks(cell);
+        }
     }
 
     // ---- classic Roku ---------------------------------------------------------------------------------

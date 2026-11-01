@@ -157,6 +157,40 @@ final class RokuSkin {
         @Override public int getOpacity() { return PixelFormat.OPAQUE; }
     }
 
+    /**
+     * The banner enlarged and blurred, for the background of a tile the banner does not fill. Made from its top and
+     * bottom rows only: they meet the banner with no visible line, and the logo in its middle leaves no smudge.
+     */
+    static Drawable blurred(android.content.res.Resources res, Drawable art) {
+        Bitmap wide = render(art, 32, 18);
+        Bitmap few = Bitmap.createBitmap(5, 4, Bitmap.Config.ARGB_8888);
+        for (int x = 0; x < 5; x++) {
+            int from = x * 32 / 5, to = (x + 1) * 32 / 5;
+            int top = stripe(wide, from, to, 0), bottom = stripe(wide, from, to, 17);
+            few.setPixel(x, 0, top);
+            few.setPixel(x, 1, top);
+            few.setPixel(x, 2, bottom);
+            few.setPixel(x, 3, bottom);
+        }
+        Bitmap soft = Bitmap.createScaledBitmap(few, 40, 40, true);
+        wide.recycle();
+        few.recycle();
+        android.graphics.drawable.BitmapDrawable drawable = new android.graphics.drawable.BitmapDrawable(res, soft);
+        drawable.setFilterBitmap(true);
+        return drawable;
+    }
+
+    private static int stripe(Bitmap bitmap, int from, int to, int y) {
+        int r = 0, g = 0, b = 0, n = to - from;
+        for (int x = from; x < to; x++) {
+            int c = bitmap.getPixel(x, y);
+            r += Color.red(c);
+            g += Color.green(c);
+            b += Color.blue(c);
+        }
+        return Color.rgb(r / n, g / n, b / n);
+    }
+
     /** The banner as an opaque bitmap, at the size the side panel shows it. */
     static Bitmap bannerBitmap(Drawable art) {
         int w = 640;

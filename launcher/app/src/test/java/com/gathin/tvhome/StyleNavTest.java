@@ -114,6 +114,20 @@ public class StyleNavTest {
         assertEquals(2, places[1][1]);
     }
 
+    @Test public void lastUsedReadsInMinutesHoursAndDays() {
+        long now = 1_000_000_000_000L;
+        assertEquals(null, AppUsage.ago(now, 0));
+        assertEquals("1 min", AppUsage.ago(now, now - 5_000));
+        assertEquals("2 min", AppUsage.ago(now, now - 120_000));
+        assertEquals("3 h", AppUsage.ago(now, now - 3 * 3_600_000L));
+        assertEquals("1 d", AppUsage.ago(now, now - 25 * 3_600_000L));
+        assertEquals("1 sem", AppUsage.ago(now, now - 8 * 86_400_000L));
+        assertEquals("1 mes", AppUsage.ago(now, now - 31 * 86_400_000L));
+        assertTrue(AppUsage.recent(now, now - 3_600_000L));
+        assertTrue(!AppUsage.recent(now, now - 25 * 3_600_000L));
+        assertTrue(!AppUsage.recent(now, 0));
+    }
+
     @Test public void anUnknownStyleIsTheDefaultLook() {
         assertEquals(LauncherStyle.WII, LauncherStyle.normalize("wii"));
         assertEquals(LauncherStyle.ROKU, LauncherStyle.normalize("roku"));
