@@ -482,7 +482,7 @@ final class StyledHome {
             return;
         }
         if (cell.entry == null) return;
-        play(StyleSounds.SELECT);
+        play(grid ? StyleSounds.NOTICE : StyleSounds.SELECT);
         model.launch(cell.entry);
     }
 
@@ -1056,7 +1056,9 @@ final class StyledHome {
                 tab.setId(R.id.btnInputs);
                 click(tab, activity::styledInputs);
             } else {
-                click(tab, () -> selectGridTab(which));
+                tab.setFocusable(true);
+                tab.setClickable(true);
+                tab.setOnClickListener(v -> selectGridTab(which));
             }
             tab.setOnFocusChangeListener((v, focused) -> {
                 tab.setBackground(focused ? rounded(Color.TRANSPARENT, GRID_YELLOW, 2, 0) : null);
@@ -1124,6 +1126,7 @@ final class StyledHome {
 
     private void selectGridTab(int tab) {
         if (tab == gridTab && tab != 1) return;
+        play(StyleSounds.REFRESH);
         gridTab = tab;
         focus = 0;
         focusKey = null;

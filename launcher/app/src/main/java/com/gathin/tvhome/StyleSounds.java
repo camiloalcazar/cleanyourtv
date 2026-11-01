@@ -12,7 +12,7 @@ import android.os.HandlerThread;
  */
 final class StyleSounds {
     private static final int RATE = 44100;
-    static final int TICK = 0, PAGE = 1, SELECT = 2;
+    static final int TICK = 0, PAGE = 1, SELECT = 2, NOTICE = 3, REFRESH = 4;
 
     /** A second set of the launcher's own tones: lower and rounder, for the grid style. */
     private final boolean soft;
@@ -23,7 +23,7 @@ final class StyleSounds {
 
     private HandlerThread thread;
     private Handler handler;
-    private final AudioTrack[] tracks = new AudioTrack[3];
+    private final AudioTrack[] tracks = new AudioTrack[5];
 
     void open() {
         if (thread != null) return;
@@ -35,6 +35,11 @@ final class StyleSounds {
             tracks[PAGE] = track(soft ? tone(90, 420, 620, 28) : tone(130, 700, 1250, 18));
             tracks[SELECT] = track(soft ? join(tone(55, 587, 587, 35), tone(120, 784, 784, 22))
                     : join(tone(70, 880, 880, 25), tone(130, 1320, 1320, 18)));
+            if (soft) {
+                // Opening an app: two short, bright notes. A new tab: a quick rise that lands on a small tap.
+                tracks[NOTICE] = track(join(tone(70, 932, 932, 30), tone(150, 1245, 1245, 20)));
+                tracks[REFRESH] = track(join(tone(120, 440, 1040, 12), tone(40, 1175, 1175, 70)));
+            }
         });
     }
 
