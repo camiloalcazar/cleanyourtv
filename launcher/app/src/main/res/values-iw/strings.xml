@@ -76,6 +76,12 @@
     <string name="style_section_layout">פריסה</string>
     <string name="style_section_effects">שעון ואפקטים</string>
     <string name="style_section_system">מערכת</string>
+    <string name="style_filter_all">הכול</string>
+    <string name="style_filter_video">וידאו</string>
+    <string name="style_filter_music">מוזיקה</string>
+    <string name="style_opened_one">נפתחה פעם אחת</string>
+    <string name="style_opened_many">נפתחה %1$d פעמים</string>
+    <string name="style_opened_none">טרם נפתחה</string>
     <string name="style_home">בית</string>
     <string name="style_tv_settings">הגדרות טלוויזיה</string>
     <string name="style_options">אפשרויות</string>

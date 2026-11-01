@@ -136,6 +136,18 @@ public class StyleNavTest {
         assertTrue(AppUsage.compareForDeck(true, 9, "Z", true, 5, "A") < 0);
     }
 
+    @Test public void anOpeningIsAnAppComingAfterAnother() {
+        java.util.Map<String, Integer> counts = new java.util.HashMap<>();
+        String last = AppOpenCounts.tally(java.util.Arrays.asList("a", "a", "home", "a", "b", "b"), null, counts);
+        assertEquals("b", last);
+        assertEquals(Integer.valueOf(2), counts.get("a"));
+        assertEquals(Integer.valueOf(1), counts.get("b"));
+        assertEquals(Integer.valueOf(1), counts.get("home"));
+        counts.clear();
+        assertEquals("c", AppOpenCounts.tally(java.util.Arrays.asList("b", "c"), "b", counts));
+        assertEquals(null, counts.get("b"));
+    }
+
     @Test public void anUnknownStyleIsTheDefaultLook() {
         assertEquals(LauncherStyle.WII, LauncherStyle.normalize("wii"));
         assertEquals(LauncherStyle.ROKU, LauncherStyle.normalize("roku"));

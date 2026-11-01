@@ -554,6 +554,7 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         try {
             ctx.startActivity(i);
             LastOpened.record(ctx, e.pkg);
+            AppOpenCounts.launched(ctx, e.pkg);
             if (advancedEffects && !reducedMotion && ctx instanceof Activity) {
                 ((Activity) ctx).overridePendingTransition(R.anim.app_open_enter, R.anim.app_open_exit);
             }

@@ -31,13 +31,18 @@ final class AppUsage {
         return stats == null ? own : Math.max(own, stats.getLastTimeUsed());
     }
 
+    /** The owner granted usage access. */
+    static boolean allowed(Context context) {
+        AppOpsManager ops = context.getSystemService(AppOpsManager.class);
+        int mode = Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
+                ? ops.unsafeCheckOpNoThrow(AppOpsManager.OPSTR_GET_USAGE_STATS, Process.myUid(), context.getPackageName())
+                : ops.checkOpNoThrow(AppOpsManager.OPSTR_GET_USAGE_STATS, Process.myUid(), context.getPackageName());
+        return mode == AppOpsManager.MODE_ALLOWED;
+    }
+
     private static Map<String, UsageStats> readSystem(Context context) {
         try {
-            AppOpsManager ops = context.getSystemService(AppOpsManager.class);
-            int mode = Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
-                    ? ops.unsafeCheckOpNoThrow(AppOpsManager.OPSTR_GET_USAGE_STATS, Process.myUid(), context.getPackageName())
-                    : ops.checkOpNoThrow(AppOpsManager.OPSTR_GET_USAGE_STATS, Process.myUid(), context.getPackageName());
-            if (mode != AppOpsManager.MODE_ALLOWED) return Collections.emptyMap();
+            if (!allowed(context)) return Collections.emptyMap();
             long now = System.currentTimeMillis();
             UsageStatsManager manager = context.getSystemService(UsageStatsManager.class);
             return manager.queryAndAggregateUsageStats(now - 60 * DAY, now);

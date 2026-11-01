@@ -34,7 +34,7 @@ Themes set the same keys plus a background colour and a wallpaper.
 
 ## Launcher settings and the default home
 
-**Home screen style** picks the whole home screen: Apple TV (the default), Wii, Roku classic, Roku new, Metro, Grid or tvmatch, each shown as a small drawing. It changes on
+**Home screen style** picks the whole home screen: Apple TV (the default), Wii, Roku classic, Roku new, Metro, Grid, tvmatch or YouTube TV, each shown as a small drawing. It changes on
 the TV with no ADB or reinstall, and Home rebuilds when you leave the settings. The other styles have a fixed layout of
 their own, so the rows that only change the default screen hide while one of them is chosen.
 

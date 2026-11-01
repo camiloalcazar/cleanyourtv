@@ -69,7 +69,7 @@ final class StyledHome {
         /** A tile that is no app (Metro's Inputs and Settings tiles). */
         Runnable action;
         String key;
-        TextView sub, star;
+        TextView sub, star, tag;
         View dot;
 
         Cell(FrameLayout view, ImageView art, TextView name) {
@@ -80,7 +80,7 @@ final class StyledHome {
     }
 
     private final MainActivity activity;
-    private final boolean wii, classic, modern, metro, grid, match;
+    private final boolean wii, classic, modern, metro, grid, match, tube;
     private final boolean animate;
     private final float density;
     private final int width, height;
@@ -141,6 +141,7 @@ final class StyledHome {
         metro = LauncherStyle.METRO.equals(style);
         grid = LauncherStyle.GRID.equals(style);
         match = LauncherStyle.TVMATCH.equals(style);
+        tube = LauncherStyle.TUBE.equals(style);
         animate = cfg.animations && !cfg.reducedMotion;
         DisplayMetrics metrics = activity.getResources().getDisplayMetrics();
         density = metrics.density;
@@ -161,6 +162,7 @@ final class StyledHome {
         else if (metro) buildMetro();
         else if (grid) buildGrid(cfg);
         else if (match) buildMatch(cfg);
+        else if (tube) buildTube();
         else buildModern();
         ClockFormat.apply(root, cfg.clockFormat);
     }
@@ -174,6 +176,8 @@ final class StyledHome {
         if (!loaded || changed != null) reload();
         else if (grid) refreshUsage();
         else if (match) showDeck();
+        else if (tube) refreshTube();
+        if (tube) AppOpenCounts.scan(activity, this::refreshTube);
         if (grid) updateOnlinePill();
         root.post(this::restoreFocus);
     }
@@ -254,6 +258,10 @@ final class StyledHome {
     // ---- focus ------------------------------------------------------------------------------------
 
     private void move(int dx, int dy) {
+        if (tube) {
+            moveTube(dx, dy);
+            return;
+        }
         if (buttonFocus >= 0) {
             moveInButtons(dx, dy);
             return;
@@ -345,7 +353,7 @@ final class StyledHome {
     private void focusTile(int index) {
         buttonFocus = -1;
         focus = index;
-        focusKey = metro ? cells.get(index).key : entries.get(index).component.flattenToShortString();
+        focusKey = metro || tube ? cells.get(index).key : entries.get(index).component.flattenToShortString();
         if (wii && index / WII_PAGE != page) {
             int direction = index / WII_PAGE > page ? 1 : -1;
             showPage(index / WII_PAGE);
@@ -388,7 +396,9 @@ final class StyledHome {
         if (buttonFocus >= 0) {
             focusButton(buttonFocus);
             if (modern) dimOthers();
-        } else if (metro) {
+        } else if (tube && cells.isEmpty()) {
+            focusButton(TUBE_PILLS + tubeTab);
+        } else if (metro || tube) {
             if (!cells.isEmpty()) {
                 int index = -1;
                 for (int i = 0; i < cells.size(); i++) if (cells.get(i).key.equals(focusKey)) index = i;
@@ -432,6 +442,10 @@ final class StyledHome {
             fillClassic();
         } else if (metro) {
             fillMetro();
+        } else if (tube) {
+            allEntries.clear();
+            allEntries.addAll(entries);
+            showTube();
         } else if (match) {
             showDeck();
         } else if (grid) {
@@ -523,12 +537,13 @@ final class StyledHome {
     }
 
     private float cornerDp() {
-        return wii ? 12.5f : metro || grid ? 0 : 3;
+        return wii ? 12.5f : metro || grid ? 0 : tube ? 8 : 3;
     }
 
     private Drawable ring() {
         if (wii) return rounded(Color.TRANSPARENT, WiiSkin.SELECT_BLUE, 3, cornerDp() - 1.5f);
         if (grid) return rounded(Color.TRANSPARENT, GRID_YELLOW, 3, 0);
+        if (tube) return rounded(Color.TRANSPARENT, Color.WHITE, 3, cornerDp() - 1);
         if (classic) return rounded(Color.TRANSPARENT, 0xFFD6D4DA, 5, .5f);
         // White, with a dark hairline inside it so that it also shows on a white banner.
         android.graphics.drawable.LayerDrawable frame = new android.graphics.drawable.LayerDrawable(new Drawable[]{
@@ -1312,6 +1327,258 @@ final class StyledHome {
         } else {
             showGridMarks(cell);
         }
+    }
+
+    // ---- YouTube TV -----------------------------------------------------------------------------------
+
+    /** Measured on the app's own screens, as pixels of a 1920x1080 screen. */
+    private static final float TUBE_LEFT = 156, TUBE_TOP = 249, TUBE_W = 528, TUBE_H = 297, TUBE_PITCH_X = 564, TUBE_PITCH_Y = 405;
+    private static final int TUBE_PILLS = 4, TUBE_COLUMNS = 3, TUBE_INPUTS = 3;
+    private int tubeTab;
+    private String tubeFilter = "";
+    private TextView tubeHeading;
+    private final List<TextView> tubePills = new ArrayList<>();
+
+    private void buildTube() {
+        root.setBackgroundColor(0xFF0F0F0F);
+        activity.getWindow().setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(0xFF0F0F0F));
+        usage = new AppUsage(activity);
+        int clipTop = py(236);
+        buildScroller(0, clipTop, width, height - clipTop, py(TUBE_TOP) - clipTop);
+
+        int[] icons = {R.drawable.ic_home_outline, R.drawable.ic_search, R.drawable.ic_input, R.drawable.ic_settings};
+        int[] names = {R.string.style_home, R.string.style_search, R.string.inputs, R.string.settings};
+        Runnable[] actions = {() -> {
+            selectTube(0);
+            if (!cells.isEmpty()) focusTile(0);
+        }, this::askTubeSearch, () -> selectTube(TUBE_INPUTS), activity::styledLauncherSettings};
+        for (int i = 0; i < icons.length; i++) {
+            ImageView icon = new ImageView(activity);
+            icon.setImageResource(icons[i]);
+            icon.setColorFilter(0xFFCCCCCC);
+            icon.setPadding(py(13), py(13), py(13), py(13));
+            icon.setContentDescription(activity.getString(names[i]));
+            icon.setOnFocusChangeListener((v, focused) -> {
+                icon.setColorFilter(focused ? 0xFF0F0F0F : 0xFFCCCCCC);
+                GradientDrawable disc = new GradientDrawable();
+                disc.setShape(GradientDrawable.OVAL);
+                disc.setColor(Color.WHITE);
+                v.setBackground(focused ? disc : null);
+            });
+            root.addView(icon, at(py(64), py(64), px(78) - py(32), py(196) + i * py(84)));
+            click(icon, actions[i]);
+            if (i == 2) icon.setId(R.id.btnInputs);
+            buttons.add(icon);
+        }
+
+        int[] pills = {R.string.style_filter_all, R.string.style_filter_video, R.string.style_filter_music, R.string.inputs};
+        int x = px(TUBE_LEFT);
+        for (int i = 0; i < pills.length; i++) {
+            TextView pill = text(activity.getString(pills[i]), 28, Color.WHITE, medium, Gravity.CENTER);
+            int w = Math.round(pill.getPaint().measureText(pill.getText().toString())) + px(64);
+            root.addView(pill, at(w, py(62), x, py(48)));
+            x += w + px(16);
+            final int which = i;
+            click(pill, () -> selectTube(which));
+            pill.setOnFocusChangeListener((v, focused) -> paintTubePills());
+            tubePills.add(pill);
+            buttons.add(pill);
+        }
+        tubeHeading = text("", 30, Color.WHITE, Typeface.create(medium, Typeface.BOLD), Gravity.CENTER_VERTICAL);
+        root.addView(tubeHeading, at(px(1200), py(46), px(TUBE_LEFT), py(176)));
+        TextClock time = new TextClock(activity);
+        time.setFormat12Hour("h:mm a");
+        time.setFormat24Hour("H:mm");
+        time.setTextSize(TypedValue.COMPLEX_UNIT_PX, py(30));
+        time.setTextColor(0xFFCCCCCC);
+        time.setTypeface(regular);
+        time.setSingleLine(true);
+        time.setGravity(Gravity.CENTER_VERTICAL | Gravity.END);
+        root.addView(time, at(px(300), py(62), px(1560), py(48)));
+        paintTubePills();
+    }
+
+    private void paintTubePills() {
+        for (int i = 0; i < tubePills.size(); i++) {
+            TextView pill = tubePills.get(i);
+            boolean active = i == tubeTab;
+            float radius = py(31) / density;
+            pill.setBackground(pill.isFocused() ? rounded(active ? Color.WHITE : 0xFF3A3A3A, active ? 0xFF8A8A8A : Color.WHITE, 3, radius)
+                    : rounded(active ? Color.WHITE : 0xFF272727, 0, 0, radius));
+            pill.setTextColor(active ? 0xFF0F0F0F : Color.WHITE);
+        }
+    }
+
+    private void moveTube(int dx, int dy) {
+        if (buttonFocus >= TUBE_PILLS) {
+            if (dx != 0) {
+                int next = buttonFocus + dx;
+                if (next < TUBE_PILLS) focusButton(0);
+                else if (next < buttons.size()) focusButton(next);
+            } else if (dy > 0 && !cells.isEmpty()) {
+                focusTile(Math.min(focus, cells.size() - 1));
+            }
+        } else if (buttonFocus >= 0) {
+            if (dy != 0) {
+                int next = buttonFocus + dy;
+                if (next >= 0 && next < TUBE_PILLS) focusButton(next);
+            } else if (dx > 0) {
+                if (cells.isEmpty()) focusButton(TUBE_PILLS + tubeTab);
+                else focusTile(Math.min(focus, cells.size() - 1));
+            }
+        } else {
+            int next = StyleNav.move(focus, cells.size(), TUBE_COLUMNS, 0, dx, dy);
+            if (next != StyleNav.OUT) focusTile(next);
+            else if (dx < 0) focusButton(0);
+            else if (dy < 0) focusButton(TUBE_PILLS + tubeTab);
+        }
+    }
+
+    private void selectTube(int tab) {
+        tubeTab = tab;
+        tubeFilter = "";
+        focus = 0;
+        focusKey = null;
+        paintTubePills();
+        showTube();
+    }
+
+    private void askTubeSearch() {
+        android.widget.EditText field = new android.widget.EditText(activity);
+        field.setSingleLine(true);
+        field.setText(tubeFilter);
+        new android.app.AlertDialog.Builder(activity)
+                .setTitle(R.string.style_search)
+                .setView(field)
+                .setPositiveButton(android.R.string.ok, (d, w) -> {
+                    tubeFilter = field.getText().toString().trim();
+                    tubeTab = 0;
+                    focus = 0;
+                    focusKey = null;
+                    paintTubePills();
+                    showTube();
+                })
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
+    }
+
+    private boolean inTubeTab(AppAdapter.Entry entry) {
+        if (tubeTab == 0) return true;
+        try {
+            int category = activity.getPackageManager().getApplicationInfo(entry.pkg, 0).category;
+            return category == (tubeTab == 1 ? android.content.pm.ApplicationInfo.CATEGORY_VIDEO
+                    : android.content.pm.ApplicationInfo.CATEGORY_AUDIO);
+        } catch (PackageManager.NameNotFoundException e) {
+            return false;
+        }
+    }
+
+    private void showTube() {
+        usage = new AppUsage(activity);
+        rokuGrid.removeAllViews();
+        cells.clear();
+        entries.clear();
+        int[] titles = {R.string.style_filter_all, R.string.style_filter_video, R.string.style_filter_music, R.string.inputs};
+        tubeHeading.setText(tubeFilter.isEmpty() ? activity.getString(titles[tubeTab]) : tubeFilter);
+        if (tubeTab == TUBE_INPUTS) {
+            for (String[] input : activity.styledInputList()) {
+                final String id = input[0];
+                Cell cell = tubeCell(cells.size());
+                bindTubeAction(cell, "input:" + id, input[1], R.drawable.ic_input, () -> activity.styledOpenInput(id));
+            }
+            if (activity.styledHasLiveTv()) {
+                Cell cell = tubeCell(cells.size());
+                bindTubeAction(cell, "live", activity.getString(R.string.live_tv), R.drawable.ic_livetv, activity::styledLiveTv);
+            }
+        } else {
+            Locale locale = Locale.getDefault();
+            String needle = tubeFilter.toLowerCase(locale);
+            for (AppAdapter.Entry entry : allEntries) {
+                if (!inTubeTab(entry) || !entry.label.toLowerCase(locale).contains(needle)) continue;
+                entries.add(entry);
+                Cell cell = tubeCell(cells.size());
+                bindTubeApp(cell, entry);
+            }
+        }
+        rokuScroll.scrollTo(0, 0);
+    }
+
+    /** A thumbnail with its title and grey line under it; the time label sits in its corner. */
+    private Cell tubeCell(int index) {
+        int w = px(TUBE_W), h = py(TUBE_H);
+        Cell cell = newCell(w, h);
+        place(cell, px(TUBE_LEFT + index % TUBE_COLUMNS * TUBE_PITCH_X), index / TUBE_COLUMNS * py(TUBE_PITCH_Y), w, h);
+        cell.name.setVisibility(View.GONE);
+        cell.tag = text("", 22, Color.WHITE, medium, Gravity.CENTER);
+        cell.tag.setPadding(px(10), py(3), px(10), py(3));
+        cell.tag.setBackground(rounded(0xE6000000, 0, 0, 3));
+        FrameLayout.LayoutParams tagLp = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM | Gravity.END);
+        tagLp.rightMargin = px(10);
+        tagLp.bottomMargin = py(10);
+        cell.view.addView(cell.tag, tagLp);
+        rokuGrid.addView(cell.view);
+        TextView title = text("", 30, Color.WHITE, Typeface.create(medium, Typeface.BOLD), Gravity.START);
+        title.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        rokuGrid.addView(title, at(w, ViewGroup.LayoutParams.WRAP_CONTENT, cell.x, cell.y + h + py(14)));
+        cell.star = title;
+        cell.sub = text("", 25, 0xFFAAAAAA, regular, Gravity.START);
+        rokuGrid.addView(cell.sub, at(w, ViewGroup.LayoutParams.WRAP_CONTENT, cell.x, cell.y + h + py(54)));
+        cells.add(cell);
+        return cell;
+    }
+
+    private void bindTubeAction(Cell cell, String key, String label, int icon, Runnable action) {
+        cell.key = key;
+        cell.action = action;
+        cell.view.setBackgroundColor(0xFF272727);
+        cell.art.setImageResource(icon);
+        cell.art.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        cell.art.setPadding(cell.w / 3, cell.h / 3, cell.w / 3, cell.h / 3);
+        cell.view.setFocusable(true);
+        cell.view.setContentDescription(label);
+        cell.star.setText(label);
+        cell.sub.setVisibility(View.GONE);
+        cell.tag.setVisibility(View.GONE);
+    }
+
+    private void bindTubeApp(Cell cell, AppAdapter.Entry entry) {
+        cell.entry = entry;
+        cell.key = entry.component.flattenToShortString();
+        cell.view.setFocusable(true);
+        cell.view.setContentDescription(entry.label);
+        if (entry.banner != null) {
+            // The whole banner, never stretched or cropped, on a blur of its own edges.
+            Drawable blur = blurCache.get(entry.pkg);
+            if (blur == null) {
+                blur = RokuSkin.blurred(activity.getResources(), entry.banner);
+                blurCache.put(entry.pkg, blur);
+            }
+            cell.view.setBackground(blur.getConstantState().newDrawable().mutate());
+            cell.art.setScaleType(ImageView.ScaleType.FIT_CENTER);
+            cell.art.setImageDrawable(entry.banner);
+        } else {
+            cell.view.setBackgroundColor(0xFF272727);
+            cell.art.setScaleType(ImageView.ScaleType.FIT_CENTER);
+            cell.art.setImageDrawable(entry.icon);
+            cell.art.setPadding(cell.w / 3, cell.h / 5, cell.w / 3, cell.h / 5);
+        }
+        cell.star.setText(entry.label);
+        showTubeMarks(cell);
+    }
+
+    private void showTubeMarks(Cell cell) {
+        String ago = AppUsage.ago(System.currentTimeMillis(), usage.lastUsed(cell.entry.pkg));
+        cell.tag.setText(ago);
+        cell.tag.setVisibility(ago == null ? View.GONE : View.VISIBLE);
+        int opened = AppOpenCounts.get(activity, cell.entry.pkg);
+        cell.sub.setText(opened == 0 ? activity.getString(R.string.style_opened_none) : opened == 1
+                ? activity.getString(R.string.style_opened_one) : activity.getString(R.string.style_opened_many, opened));
+    }
+
+    private void refreshTube() {
+        usage = new AppUsage(activity);
+        for (Cell cell : cells) if (cell.entry != null) showTubeMarks(cell);
     }
 
     // ---- tvmatch ---------------------------------------------------------------------------------------

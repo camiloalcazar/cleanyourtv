@@ -70,6 +70,12 @@
     <string name="style_section_layout">Diseño</string>
     <string name="style_section_effects">Reloj y efectos</string>
     <string name="style_section_system">Sistema</string>
+    <string name="style_filter_all">Todo</string>
+    <string name="style_filter_video">Video</string>
+    <string name="style_filter_music">Música</string>
+    <string name="style_opened_one">Abierta 1 vez</string>
+    <string name="style_opened_many">Abierta %1$d veces</string>
+    <string name="style_opened_none">Sin abrir</string>
     <string name="style_home">Inicio</string>
     <string name="style_tv_settings">Ajustes de TV</string>
     <string name="style_roku">Roku clásico</string>

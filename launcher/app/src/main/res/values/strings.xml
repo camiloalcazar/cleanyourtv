@@ -83,6 +83,13 @@
     <string name="style_section_layout">Layout</string>
     <string name="style_section_effects">Clock and effects</string>
     <string name="style_section_system">System</string>
+    <string name="style_tube" translatable="false">YouTube TV</string>
+    <string name="style_filter_all">All</string>
+    <string name="style_filter_video">Video</string>
+    <string name="style_filter_music">Music</string>
+    <string name="style_opened_one">Opened once</string>
+    <string name="style_opened_many">Opened %1$d times</string>
+    <string name="style_opened_none">Not opened yet</string>
     <string name="style_home">Home</string>
     <string name="style_tv_settings">TV settings</string>
     <string name="style_options">Options</string>

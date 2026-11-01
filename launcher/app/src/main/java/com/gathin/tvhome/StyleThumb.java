@@ -112,6 +112,14 @@ final class StyleThumb extends View {
                 box(c, .34f, .62f, .66f, .84f, .03f, 0xB0301010);
                 for (int i = 0; i < 5; i++) box(c, .34f + i * .07f, .88f, .38f + i * .07f, .96f, .04f, 0xFFFFFFFF);
                 break;
+            case LauncherStyle.TUBE:
+                back(c, 0xFF0F0F0F, 0xFF0F0F0F);
+                for (int i = 0; i < 4; i++) box(c, .03f, .22f + i * .14f, .055f, .27f + i * .14f, .02f, 0xC0FFFFFF);
+                box(c, .09f, .06f, .17f, .12f, .03f, 0xFFFFFFFF);
+                for (int i = 1; i < 4; i++) box(c, .09f + i * .1f, .06f, .17f + i * .1f, .12f, .03f, 0xFF3A3A3A);
+                tiles(c, .09f, .2f, .27f, .28f, .025f, .13f, 3, 2, .025f);
+                for (int i = 0; i < 3; i++) box(c, .09f + i * .295f, .5f, .28f + i * .295f, .53f, 0, 0xFFE0E0E0);
+                break;
             default:
                 back(c, 0xFF000000, 0xFF0A0A12);
                 box(c, .06f, .08f, .22f, .16f, .005f, 0xD0FFFFFF);

@@ -3400,6 +3400,42 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         rows.getChildAt(0).requestFocus();
     }
 
+    /** The inputs a styled home shows as tiles: {id, label}, ports in order, hidden ones left out. */
+    List<String[]> styledInputList() {
+        List<String[]> found = new ArrayList<>();
+        TvInputManager tim = (TvInputManager) getSystemService(TV_INPUT_SERVICE);
+        if (tim == null) return found;
+        List<TvInputInfo> inputs = new ArrayList<>(tim.getTvInputList());
+        Collections.sort(inputs, (a, b) -> {
+            boolean ha = a.getType() == TvInputInfo.TYPE_HDMI, hb = b.getType() == TvInputInfo.TYPE_HDMI;
+            if (ha != hb) return ha ? -1 : 1;
+            return String.valueOf(a.loadLabel(this)).compareToIgnoreCase(String.valueOf(b.loadLabel(this)));
+        });
+        for (TvInputInfo info : inputs) {
+            if (!info.isPassthroughInput() || info.isHidden(this) || info.getParentId() != null) continue;
+            CharSequence label = info.loadLabel(this);
+            String name = label == null ? info.getId() : label.toString();
+            CharSequence custom = InputNames.tidy(info.loadCustomLabel(this));
+            if (custom != null && custom.length() > 0 && !custom.toString().equals(name)) name = custom + " \u00B7 " + name;
+            found.add(new String[]{info.getId(), name});
+        }
+        return found;
+    }
+
+    void styledOpenInput(String id) {
+        openInput(id);
+    }
+
+    /** Whether this TV has a Live TV app, and opens it. */
+    boolean styledHasLiveTv() {
+        return liveTvIntent() != null;
+    }
+
+    void styledLiveTv() {
+        Intent live = liveTvIntent();
+        if (live != null) open(live);
+    }
+
     void styledNetwork() {
         open(systemIntent(Settings.ACTION_WIFI_SETTINGS));
     }
