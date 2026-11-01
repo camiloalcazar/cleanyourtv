@@ -62,13 +62,18 @@ final class SalaHome {
     private final FrameLayout homeLayer, widgetLayer, cardsPane;
     private final ScrollView cardsScroll;
     private final TextView greeting, dateLine, hint;
-    private final FrameLayout favRow, smallRow;
+    private final FrameLayout favRow;
     private final List<View> pills = new ArrayList<>();
     private final List<View> favViews = new ArrayList<>();
     private final List<AppAdapter.Entry> favEntries = new ArrayList<>();
     private final List<AppAdapter.Entry> allApps = new ArrayList<>();
     private final Map<String, Drawable> blurs = new HashMap<>();
     private final TextView favName;
+    private final FrameLayout appsLayer, appsPane;
+    private final ScrollView appsScroll;
+    private final List<Target> appTargets = new ArrayList<>();
+    private boolean appsOpen;
+    private int appFocus;
 
     private static final class Target {
         View view;
@@ -121,7 +126,7 @@ final class SalaHome {
         View[] made = new View[3];
         for (int i = 0; i < 3; i++) {
             made[i] = pill(labels[i], icons[i], i == 0);
-            int w = i == 0 ? 74 : Math.round(((TextView) made[i]).getPaint().measureText(labels[i]) / px(1)) + (icons[i] != 0 ? 110 : 66);
+            int w = i == 0 ? 74 : Math.round(((TextView) made[i]).getPaint().measureText(labels[i]) / px(1)) + (icons[i] != 0 ? 92 : 66);
             x -= w;
             homeLayer.addView(made[i], at(w, 74, x, 96));
             final Runnable action = actions[i];
@@ -146,19 +151,31 @@ final class SalaHome {
         TextClock small = clock(58, Color.WHITE, light);
         small.setGravity(Gravity.CENTER_VERTICAL);
         widgetLayer.addView(small, at(400, 84, 121, 38));
-        smallRow = new FrameLayout(activity);
-        widgetLayer.addView(smallRow, at(1920, 160, 0, 150));
         cardsScroll = new ScrollView(activity);
-        cardsScroll.setClipToPadding(false);
-        cardsScroll.setClipChildren(false);
+        // The cards scroll inside this window only, never over the clock and the apps above it.
+        cardsScroll.setClipToPadding(true);
         cardsScroll.setVerticalScrollBarEnabled(false);
         cardsScroll.setFocusable(false);
-        cardsScroll.setPadding(0, py(20), 0, py(60));
+        cardsScroll.setPadding(0, py(20), 0, 0);
         cardsScroll.setSmoothScrollingEnabled(animate);
         cardsPane = new FrameLayout(activity);
         cardsPane.setClipChildren(false);
         cardsScroll.addView(cardsPane, new ScrollView.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-        widgetLayer.addView(cardsScroll, at(1920, 750, 0, 330));
+        widgetLayer.addView(cardsScroll, at(1920, 950, 0, 130));
+        appsLayer = layer();
+        appsLayer.setVisibility(View.GONE);
+        appsLayer.addView(text(activity.getString(R.string.sala_all_apps), 46, Color.WHITE,
+                Typeface.create(medium, Typeface.BOLD), Gravity.CENTER_VERTICAL), at(1200, 70, 121, 34));
+        appsScroll = new ScrollView(activity);
+        appsScroll.setClipToPadding(true);
+        appsScroll.setVerticalScrollBarEnabled(false);
+        appsScroll.setFocusable(false);
+        appsScroll.setPadding(0, py(26), 0, 0);
+        appsScroll.setSmoothScrollingEnabled(animate);
+        appsPane = new FrameLayout(activity);
+        appsPane.setClipChildren(false);
+        appsScroll.addView(appsPane, new ScrollView.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        appsLayer.addView(appsScroll, at(1920, 970, 0, 110));
         SalaData.logWatchNext(activity);
     }
 
@@ -244,7 +261,8 @@ final class SalaHome {
             d.setTint(Color.WHITE);
             pill.setCompoundDrawablesRelative(d, null, null, null);
             pill.setCompoundDrawablePadding(iconOnly ? 0 : px(10));
-            if (iconOnly) pill.setPadding(px(22), 0, 0, 0);
+            pill.setGravity(Gravity.CENTER_VERTICAL | Gravity.START);
+            pill.setPadding(px(22), 0, iconOnly ? 0 : px(26), 0);
         }
         pill.setFocusable(true);
         paintPill(pill, false);
@@ -288,7 +306,6 @@ final class SalaHome {
     void releaseArt() {
         blurs.clear();
         favRow.removeAllViews();
-        smallRow.removeAllViews();
         cardsPane.removeAllViews();
         targets.clear();
         allApps.clear();
@@ -297,6 +314,7 @@ final class SalaHome {
     }
 
     void goHome() {
+        if (appsOpen) closeApps();
         showWidgets(false);
         favFocus = 0;
         pillFocus = -1;
@@ -378,7 +396,6 @@ final class SalaHome {
             if (!favEntries.contains(entry) && SalaData.favorites(activity).isEmpty()) favEntries.add(entry);
         }
         favRow.removeAllViews();
-        smallRow.removeAllViews();
         favViews.clear();
         for (int i = 0; i < favEntries.size(); i++) {
             final int index = i;
@@ -397,11 +414,88 @@ final class SalaHome {
             });
             favRow.addView(tile, at(TILE, TILE, 120 + i * 294, 20));
             favViews.add(tile);
-            FrameLayout small = tile(favEntries.get(i), 150, 16);
-            small.setAlpha(.72f);
-            smallRow.addView(small, at(150, 150, 121 + i * 174, 0));
         }
+        // After the favourites, the way to every other app. Its edge shows at the end of the row.
+        FrameLayout all = new FrameLayout(activity);
+        clipRound(all, 27);
+        all.setBackground(rounded(0x2EFFFFFF, 0x59FFFFFF, 1.5f, 27));
+        ImageView grid = new ImageView(activity);
+        grid.setImageResource(R.drawable.ic_grid);
+        grid.setColorFilter(Color.WHITE);
+        all.addView(grid, new FrameLayout.LayoutParams(py(84), py(84), Gravity.CENTER));
+        all.setContentDescription(activity.getString(R.string.sala_all_apps));
+        all.setFocusable(true);
+        all.setOnFocusChangeListener((v, focused) -> {
+            v.setForeground(focused ? rounded(Color.TRANSPARENT, Color.WHITE, 5, 25) : null);
+            float scale = focused ? 1.1f : 1f;
+            v.setScaleX(scale);
+            v.setScaleY(scale);
+            if (focused) favName.setText(R.string.sala_all_apps);
+        });
+        favRow.addView(all, at(TILE, TILE, 120 + favEntries.size() * 294, 20));
+        favViews.add(all);
         favFocus = Math.min(favFocus, Math.max(0, favViews.size() - 1));
+    }
+
+    private void openApps() {
+        appsPane.removeAllViews();
+        appTargets.clear();
+        int columns = FAVORITES;
+        for (int i = 0; i < allApps.size(); i++) {
+            final AppAdapter.Entry entry = allApps.get(i);
+            FrameLayout view = tile(entry, TILE, 27);
+            int x = 120 + i % columns * 294, y = i / columns * 294;
+            appsPane.addView(view, at(TILE, TILE, x, y));
+            Target target = new Target();
+            target.view = view;
+            target.x = x;
+            target.y = y;
+            target.w = TILE;
+            target.h = TILE;
+            target.action = () -> model.launch(entry);
+            view.setFocusable(true);
+            view.setOnFocusChangeListener((v, focused) -> {
+                v.setForeground(focused ? rounded(Color.TRANSPARENT, Color.WHITE, 5, 25) : null);
+                v.setElevation(focused ? py(26) : 0);
+                float scale = focused ? 1.08f : 1f;
+                v.setScaleX(scale);
+                v.setScaleY(scale);
+                if (focused) keepAppVisible(target);
+            });
+            appTargets.add(target);
+        }
+        View end = new View(activity);
+        appsPane.addView(end, at(1, 1, 0, (allApps.size() + columns - 1) / columns * 294 + 30));
+        appFocus = 0;
+        appsScroll.scrollTo(0, 0);
+        appsOpen = true;
+        homeLayer.setVisibility(View.GONE);
+        appsLayer.setVisibility(View.VISIBLE);
+        if (animate) {
+            appsLayer.setTranslationX(py(240));
+            appsLayer.setAlpha(0f);
+            appsLayer.animate().translationX(0).alpha(1).setDuration(180).start();
+        }
+        restoreFocus();
+    }
+
+    private void closeApps() {
+        appsOpen = false;
+        appsLayer.setVisibility(View.GONE);
+        homeLayer.setVisibility(View.VISIBLE);
+        appsPane.removeAllViews();
+        appTargets.clear();
+    }
+
+    private void keepAppVisible(Target t) {
+        int window = appsScroll.getHeight();
+        if (window <= 0) return;
+        int top = py(t.y) + appsScroll.getPaddingTop(), bottom = top + py(t.h), margin = py(24);
+        int y = appsScroll.getScrollY();
+        if (top - margin < y) y = top - margin;
+        else if (bottom + margin > y + window) y = bottom + margin - window;
+        if (animate) appsScroll.smoothScrollTo(0, Math.max(0, y));
+        else appsScroll.scrollTo(0, Math.max(0, y));
     }
 
     /** The whole banner across the width, on a blur of its own edges; an app with only an icon shows that and its name. */
@@ -507,7 +601,7 @@ final class SalaHome {
             bottom = Math.max(bottom, y + Math.round(CARD_H));
         }
         View end = new View(activity);
-        cardsPane.addView(end, at(1, 1, 0, bottom));
+        cardsPane.addView(end, at(1, 1, 0, bottom + 40));
         targetFocus = Math.min(targetFocus, Math.max(0, targets.size() - 1));
         hint.setVisibility(targets.isEmpty() ? View.GONE : View.VISIBLE);
     }
@@ -793,7 +887,9 @@ final class SalaHome {
     private void screen(FrameLayout card, int x, int y) {
         caption(card, R.string.sala_w_screen);
         target(card, x, y, CARD_W, CARD_H, 26, null);
-        List<Map.Entry<String, Long>> today = SalaData.screenToday(activity);
+        List<Map.Entry<String, Long>> today = new ArrayList<>(SalaData.screenToday(activity));
+        java.util.Iterator<Map.Entry<String, Long>> each = today.iterator();
+        while (each.hasNext()) if (byPackage(each.next().getKey()) == null) each.remove();
         long total = 0;
         for (Map.Entry<String, Long> app : today) total += app.getValue();
         put(card, text(SalaData.duration(total), 56, Color.WHITE, light, Gravity.CENTER_VERTICAL), 385, 72, 28, 60);
@@ -895,6 +991,7 @@ final class SalaHome {
     }
 
     private View expected() {
+        if (appsOpen) return appFocus < appTargets.size() ? appTargets.get(appFocus).view : null;
         if (widgetsOpen) return targetFocus < targets.size() ? targets.get(targetFocus).view : null;
         if (pillFocus >= 0) return pills.get(pillFocus);
         return favFocus < favViews.size() ? favViews.get(favFocus) : null;
@@ -905,7 +1002,12 @@ final class SalaHome {
         View view = expected();
         if (view == null && !widgetsOpen) view = pills.get(0);
         if (view != null) view.requestFocus();
+        if (appsOpen) return;
         if (!widgetsOpen && pillFocus < 0 && favFocus < favEntries.size()) favName.setText(favEntries.get(favFocus).label);
+        // Slides only for the tile after the favourites, which starts past the screen's edge.
+        float slide = !widgetsOpen && pillFocus < 0 && favFocus >= FAVORITES ? -py(300) : 0;
+        if (animate) favRow.animate().translationX(slide).setDuration(180).start();
+        else favRow.setTranslationX(slide);
     }
 
     boolean onKey(KeyEvent event) {
@@ -939,7 +1041,9 @@ final class SalaHome {
     }
 
     private void back() {
-        if (widgetsOpen) {
+        if (appsOpen) {
+            closeApps();
+        } else if (widgetsOpen) {
             showWidgets(false);
         } else {
             pillFocus = -1;
@@ -948,7 +1052,7 @@ final class SalaHome {
     }
 
     private void handleOk(KeyEvent event) {
-        boolean onFavorite = !widgetsOpen && pillFocus < 0;
+        boolean onFavorite = !appsOpen && !widgetsOpen && pillFocus < 0 && favFocus < favEntries.size();
         if (event.getAction() == KeyEvent.ACTION_DOWN) {
             if (event.getRepeatCount() == 0) {
                 okFired = false;
@@ -976,18 +1080,30 @@ final class SalaHome {
     }
 
     private void activate() {
-        if (widgetsOpen) {
+        if (appsOpen) {
+            if (appFocus < appTargets.size()) appTargets.get(appFocus).action.run();
+        } else if (widgetsOpen) {
             if (targetFocus < targets.size() && targets.get(targetFocus).action != null) targets.get(targetFocus).action.run();
         } else if (pillFocus >= 0) {
             ((Runnable) pills.get(pillFocus).getTag()).run();
         } else if (favFocus < favEntries.size()) {
             model.launch(favEntries.get(favFocus));
+        } else if (favFocus == favEntries.size()) {
+            openApps();
         }
     }
 
     private void move(int code) {
         int dx = code == KeyEvent.KEYCODE_DPAD_LEFT ? -1 : code == KeyEvent.KEYCODE_DPAD_RIGHT ? 1 : 0;
         int dy = code == KeyEvent.KEYCODE_DPAD_UP ? -1 : code == KeyEvent.KEYCODE_DPAD_DOWN ? 1 : 0;
+        if (appsOpen) {
+            int next = StyleNav.move(appFocus, appTargets.size(), FAVORITES, 0, dx, dy);
+            if (next != StyleNav.OUT) {
+                appFocus = next;
+                restoreFocus();
+            }
+            return;
+        }
         if (widgetsOpen) {
             int[][] rects = new int[targets.size()][];
             for (int i = 0; i < rects.length; i++) {
