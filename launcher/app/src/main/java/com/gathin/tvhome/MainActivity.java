@@ -1299,6 +1299,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         resumed = false;
         if (styled != null) {
             RemoteKeys.release(this);
+            styled.onPause();
             if (openPopup != null) openPopup.dismiss();
             return;
         }
@@ -3433,7 +3434,9 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             String name = label == null ? info.getId() : label.toString();
             CharSequence custom = InputNames.tidy(info.loadCustomLabel(this));
             if (custom != null && custom.length() > 0 && !custom.toString().equals(name)) name = custom + " \u00B7 " + name;
-            found.add(new String[]{info.getId(), name});
+            boolean connected = info.getType() == TvInputInfo.TYPE_HDMI
+                    && tim.getInputState(info.getId()) == TvInputManager.INPUT_STATE_CONNECTED;
+            found.add(new String[]{info.getId(), name, connected ? "1" : "0"});
         }
         return found;
     }
@@ -3450,6 +3453,17 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     void styledLiveTv() {
         Intent live = liveTvIntent();
         if (live != null) open(live);
+    }
+
+    void styledSalaSettings() {
+        open(new Intent(this, SalaSettingsActivity.class));
+    }
+
+    /** The TV's own sleep timer screen, else its settings. */
+    void styledSleepTimer() {
+        Intent timer = new Intent("com.android.tv.settings.SLEEP_TIMER");
+        if (timer.resolveActivity(getPackageManager()) != null) open(timer);
+        else open(systemIntent(Settings.ACTION_SETTINGS));
     }
 
     void styledNetwork() {

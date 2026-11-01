@@ -36,6 +36,21 @@ final class StyleNav {
         return index;
     }
 
+    /** Lays cards of {columns wide} left to right, starting a new row where one does not fit. Returns {column, row}. */
+    static int[][] flow(int[][] spans, int columns) {
+        int[][] places = new int[spans.length][];
+        int column = 0, row = 0;
+        for (int i = 0; i < spans.length; i++) {
+            if (column + spans[i][0] > columns) {
+                column = 0;
+                row++;
+            }
+            places[i] = new int[]{column, row};
+            column += spans[i][0];
+        }
+        return places;
+    }
+
     /** How many tiles a row slides left so the one at this column stays on screen: the first few stay put. */
     static int rowScroll(int column, int lead) {
         return Math.max(0, column - lead);

@@ -154,6 +154,34 @@ public class StyleNavTest {
         assertEquals(2, StyleNav.rowScroll(5, 3));
     }
 
+    @Test public void cardsFlowToANewRowWhereTheyDoNotFit() {
+        int[][] places = StyleNav.flow(new int[][]{{1}, {2}, {1}, {1}, {2}, {2}}, 4);
+        assertEquals(1, places[1][0]);
+        assertEquals(3, places[2][0]);
+        assertEquals(0, places[3][0]);
+        assertEquals(1, places[3][1]);
+        assertEquals(1, places[4][0]);
+        assertEquals(0, places[5][0]);
+        assertEquals(2, places[5][1]);
+    }
+
+    @Test public void aTeamIsFoundWhateverItsAccentsOrCapitals() {
+        assertTrue(SalaData.teamMatches("colombia", "Colombia"));
+        assertTrue(SalaData.teamMatches("Atletico Nacional", "Atl\u00e9tico Nacional"));
+        assertTrue(SalaData.teamMatches("nacional", "Atl\u00e9tico Nacional"));
+        assertTrue(!SalaData.teamMatches("Colombia", "Brazil"));
+        assertTrue(!SalaData.teamMatches("", "Brazil"));
+    }
+
+    @Test public void weatherCodesGetASymbol() {
+        assertEquals("\u2600", SalaData.weatherSymbol(0));
+        assertEquals("\u2601", SalaData.weatherSymbol(3));
+        assertEquals("\u2602", SalaData.weatherSymbol(61));
+        assertEquals("\u2744", SalaData.weatherSymbol(73));
+        assertEquals("\u26A1", SalaData.weatherSymbol(95));
+        assertEquals("3 h 12 min", SalaData.duration(192 * 60000L));
+    }
+
     @Test public void anUnknownStyleIsTheDefaultLook() {
         assertEquals(LauncherStyle.WII, LauncherStyle.normalize("wii"));
         assertEquals(LauncherStyle.ROKU, LauncherStyle.normalize("roku"));

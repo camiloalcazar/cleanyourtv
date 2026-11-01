@@ -31,10 +31,10 @@ public final class LauncherSettingsActivity extends Activity {
     /** The picker's styles, in order, each with its name: a new style only needs a line here and a case in StyleThumb. */
     private static final String[] STYLES = {LauncherStyle.APPLE, LauncherStyle.WII, LauncherStyle.ROKU,
             LauncherStyle.ROKU_NEW, LauncherStyle.METRO, LauncherStyle.GRID, LauncherStyle.TVMATCH, LauncherStyle.TUBE,
-            LauncherStyle.CINEMA};
+            LauncherStyle.CINEMA, LauncherStyle.SALA};
     private static final int[] STYLE_NAMES = {R.string.style_apple, R.string.style_wii, R.string.style_roku,
             R.string.style_roku_new, R.string.style_metro, R.string.style_grid, R.string.style_tvmatch, R.string.style_tube,
-            R.string.style_netflix};
+            R.string.style_netflix, R.string.style_sala};
     private static final int PICKER_COLUMNS = 4;
     private final View[] styleChoices = new View[STYLES.length];
     private final View[] styleChecks = new View[STYLES.length];

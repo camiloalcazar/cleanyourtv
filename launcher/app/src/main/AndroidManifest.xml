@@ -23,6 +23,12 @@
     <uses-permission android:name="yandex.tv.permission.ACCESS_TV_SOURCE" />
     <!-- "Last used" on the grid style, only where the owner grants usage access; without it the launcher's own note of
          what it opened is used (AppUsage). -->
+    <!-- Sala's weather and air widgets, from Open-Meteo. Only this fork has it. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Sala: photos from a USB drive's Fondos folder, and a check of the Watch Next list. -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <uses-permission android:name="com.android.providers.tv.permission.READ_EPG_DATA" />
     <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS"
         tools:ignore="ProtectedPermissions" />
 
@@ -110,6 +116,11 @@
             </intent-filter>
         </activity>
 
+        <activity
+            android:name=".SalaSettingsActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:screenOrientation="landscape" />
         <activity
             android:name=".LauncherSettingsActivity"
             android:exported="false"

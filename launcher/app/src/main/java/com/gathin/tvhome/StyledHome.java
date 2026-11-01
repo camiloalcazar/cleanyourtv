@@ -80,7 +80,8 @@ final class StyledHome {
     }
 
     private final MainActivity activity;
-    private final boolean wii, classic, modern, metro, grid, match, tube, cinema;
+    private final boolean wii, classic, modern, metro, grid, match, tube, cinema, sala;
+    private SalaHome salaHome;
     private final boolean animate;
     private final float density;
     private final int width, height;
@@ -143,6 +144,7 @@ final class StyledHome {
         match = LauncherStyle.TVMATCH.equals(style);
         tube = LauncherStyle.TUBE.equals(style);
         cinema = LauncherStyle.CINEMA.equals(style);
+        sala = LauncherStyle.SALA.equals(style);
         animate = cfg.animations && !cfg.reducedMotion;
         DisplayMetrics metrics = activity.getResources().getDisplayMetrics();
         density = metrics.density;
@@ -165,6 +167,7 @@ final class StyledHome {
         else if (match) buildMatch(cfg);
         else if (tube) buildTube();
         else if (cinema) buildCinema();
+        else if (sala) salaHome = new SalaHome(activity, root, model, animate);
         else buildModern();
         ClockFormat.apply(root, cfg.clockFormat);
     }
@@ -172,6 +175,13 @@ final class StyledHome {
     // ---- lifecycle, called by MainActivity --------------------------------------------------------
 
     void onResume() {
+        if (sala) {
+            ChangedPackages news = activity.getPackageManager().getChangedPackages(packageSequence);
+            if (news != null) packageSequence = news.getSequenceNumber();
+            if (!loaded || news != null) reload();
+            salaHome.onResume();
+            return;
+        }
         if (sounds != null) sounds.open();
         ChangedPackages changed = activity.getPackageManager().getChangedPackages(packageSequence);
         if (changed != null) packageSequence = changed.getSequenceNumber();
@@ -186,6 +196,10 @@ final class StyledHome {
         root.post(this::restoreFocus);
     }
 
+    void onPause() {
+        if (sala) salaHome.onPause();
+    }
+
     void onStop() {
         stopPulse();
         if (sounds != null) sounds.close();
@@ -193,6 +207,13 @@ final class StyledHome {
 
     /** Another app needs the memory while Home is in the background; the artwork comes back on resume. */
     void releaseArt() {
+        if (sala) {
+            salaHome.releaseArt();
+            model.clear();
+            entries.clear();
+            loaded = false;
+            return;
+        }
         for (Cell cell : cells) cell.art.setImageDrawable(null);
         entries.clear();
         model.clear();
@@ -205,6 +226,10 @@ final class StyledHome {
 
     /** The Home key on Home: back to the first app. */
     void goHome() {
+        if (sala) {
+            salaHome.goHome();
+            return;
+        }
         focus = 0;
         focusKey = null;
         buttonFocus = classic ? 0 : -1;
@@ -221,6 +246,7 @@ final class StyledHome {
 
     /** D-pad directions go through {@link StyleNav}, so a press moves one step and never falls through. */
     boolean onKey(KeyEvent event) {
+        if (sala) return salaHome.onKey(event);
         int code = event.getKeyCode();
         boolean ok = code == KeyEvent.KEYCODE_DPAD_CENTER || code == KeyEvent.KEYCODE_ENTER;
         boolean arrow = code == KeyEvent.KEYCODE_DPAD_LEFT || code == KeyEvent.KEYCODE_DPAD_RIGHT
@@ -454,6 +480,8 @@ final class StyledHome {
             fillClassic();
         } else if (metro) {
             fillMetro();
+        } else if (sala) {
+            salaHome.reload(entries);
         } else if (cinema) {
             allEntries.clear();
             allEntries.addAll(entries);
