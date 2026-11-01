@@ -148,6 +148,7 @@
     <string name="sala_live">Live</string>
     <string name="sala_final">Full time</string>
     <string name="sala_loading">Loading…</string>
+    <string name="sala_bg_glass">Glass</string>
     <string name="style_home">Home</string>
     <string name="style_tv_settings">TV settings</string>
     <string name="style_options">Options</string>

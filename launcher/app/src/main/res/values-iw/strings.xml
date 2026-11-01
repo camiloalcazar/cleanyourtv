@@ -134,6 +134,7 @@
     <string name="sala_live">בשידור חי</string>
     <string name="sala_final">סיום</string>
     <string name="sala_loading">טוען…</string>
+    <string name="sala_bg_glass">זכוכית</string>
     <string name="style_home">בית</string>
     <string name="style_tv_settings">הגדרות טלוויזיה</string>
     <string name="style_options">אפשרויות</string>

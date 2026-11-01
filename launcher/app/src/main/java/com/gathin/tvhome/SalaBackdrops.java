@@ -20,8 +20,8 @@ import java.util.List;
 final class SalaBackdrops {
     private SalaBackdrops() {}
 
-    static final String[] SCENES = {"dusk", "aurora", "hill", "ocean", "pastel", "black", "coffee"};
-    static final int[] SCENE_NAMES = {R.string.sala_bg_dusk, R.string.sala_bg_aurora, R.string.sala_bg_hill, R.string.sala_bg_ocean,
+    static final String[] SCENES = {"glass", "dusk", "aurora", "hill", "ocean", "pastel", "black", "coffee"};
+    static final int[] SCENE_NAMES = {R.string.sala_bg_glass, R.string.sala_bg_dusk, R.string.sala_bg_aurora, R.string.sala_bg_hill, R.string.sala_bg_ocean,
             R.string.sala_bg_pastel, R.string.sala_bg_black, R.string.sala_bg_coffee};
     static final int[] COLORS = {0xFF101820, 0xFF1F2A44, 0xFF2D3A2E, 0xFF3B2A20, 0xFF4A1F2E, 0xFF2B2B2B, 0xFF004D5A, 0xFF5B4A8A};
     static final String AUTO = "auto";
@@ -55,7 +55,7 @@ final class SalaBackdrops {
     }
 
     static String current(Context context) {
-        return SalaData.prefs(context).getString("background", "dusk");
+        return SalaData.prefs(context).getString("background", "glass");
     }
 
     /** The picture for a choice; "auto" picks by the hour. A missing photo falls back to the first scene. */
@@ -74,6 +74,13 @@ final class SalaBackdrops {
             Bitmap photo = BitmapFactory.decodeFile(file.getPath(), options);
             if (photo != null) return photo;
             choice = "dusk";
+        }
+        if ("glass".equals(choice)) {
+            BitmapFactory.Options options = new BitmapFactory.Options();
+            options.inPreferredConfig = Bitmap.Config.RGB_565;
+            options.inSampleSize = w < 480 ? 4 : 1;
+            Bitmap wallpaper = BitmapFactory.decodeResource(context.getResources(), R.drawable.sala_glass, options);
+            if (wallpaper != null) return wallpaper;
         }
         Bitmap bitmap = Bitmap.createBitmap(w, h, Bitmap.Config.RGB_565);
         Canvas c = new Canvas(bitmap);

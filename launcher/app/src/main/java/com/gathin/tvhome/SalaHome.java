@@ -209,6 +209,14 @@ final class SalaHome {
         return clock;
     }
 
+    /** Frosted glass, painted: a lighter top, a darker base and a bright rim. Real blur would cost too much on a TV. */
+    private GradientDrawable glass() {
+        GradientDrawable shape = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[]{0x4AFFFFFF, 0x1FFFFFFF});
+        shape.setCornerRadius(py(26));
+        shape.setStroke(py(1.5f), 0x59FFFFFF);
+        return shape;
+    }
+
     private GradientDrawable rounded(int fill, int stroke, float strokePx, float radiusPx) {
         GradientDrawable shape = new GradientDrawable();
         shape.setColor(fill);
@@ -245,7 +253,7 @@ final class SalaHome {
     }
 
     private void paintPill(TextView pill, boolean focused) {
-        pill.setBackground(focused ? rounded(0xF2FFFFFF, 0, 0, 37) : rounded(0x40FFFFFF, 0, 0, 37));
+        pill.setBackground(focused ? rounded(0xF2FFFFFF, 0, 0, 37) : rounded(0x2EFFFFFF, 0x4DFFFFFF, 1.5f, 37));
         pill.setTextColor(focused ? 0xFF10141A : Color.WHITE);
         Drawable[] drawables = pill.getCompoundDrawablesRelative();
         if (drawables[0] != null) drawables[0].setTint(focused ? 0xFF10141A : Color.WHITE);
@@ -411,6 +419,12 @@ final class SalaHome {
             }
             tile.setBackground(blur.getConstantState().newDrawable().mutate());
             art.setImageDrawable(entry.banner);
+            // The focus glow takes the colour of the app, as in the glass theme.
+            if (android.os.Build.VERSION.SDK_INT >= 28) {
+                int glow = RokuSkin.edges(entry.banner).bottom;
+                tile.setOutlineSpotShadowColor(glow);
+                tile.setOutlineAmbientShadowColor(glow);
+            }
         } else {
             tile.setBackgroundColor(0xFF2A2F38);
             art.setImageDrawable(entry.icon);
@@ -487,7 +501,7 @@ final class SalaHome {
             int x = Math.round(CARD_LEFT + places[i][0] * (CARD_W + CARD_GAP));
             int y = Math.round(places[i][1] * (CARD_H + CARD_GAP));
             FrameLayout card = new FrameLayout(activity);
-            card.setBackground(rounded(0xC0181C22, 0x22FFFFFF, 1.5f, 26));
+            card.setBackground(glass());
             cardsPane.addView(card, at(w, CARD_H, x, y));
             fill(widgets.get(i), card, w, x, y);
             bottom = Math.max(bottom, y + Math.round(CARD_H));
