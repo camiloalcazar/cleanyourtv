@@ -3400,6 +3400,22 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         rows.getChildAt(0).requestFocus();
     }
 
+    /** A profile circle's menu: the launcher's settings first; alignEnd hangs it inward from the right of the screen. */
+    void styledProfileMenu(View anchor, boolean alignEnd) {
+        View panel = getLayoutInflater().inflate(R.layout.popup_inputs, root, false);
+        LinearLayout rows = panel.findViewById(R.id.rows);
+        PopupWindow popup = glassPopup(panel, (int) (240 * density));
+        addSettingsMenuRow(rows, popup, R.string.launcher_settings, this::styledLauncherSettings);
+        addSettingsMenuRow(rows, popup, R.string.inputs, this::showInputs);
+        addSettingsMenuRow(rows, popup, R.string.wifi, this::styledNetwork);
+        addSettingsMenuRow(rows, popup, R.string.tv_settings, this::styledTvSettings);
+        panel.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED);
+        popup.setWidth(Math.max((int) (240 * density), panel.getMeasuredWidth()));
+        popup.setHeight(panel.getMeasuredHeight());
+        dropIn(popup, panel, anchor, alignEnd ? Gravity.END : Gravity.START);
+        rows.getChildAt(0).requestFocus();
+    }
+
     /** The inputs a styled home shows as tiles: {id, label}, ports in order, hidden ones left out. */
     List<String[]> styledInputList() {
         List<String[]> found = new ArrayList<>();

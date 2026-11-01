@@ -81,6 +81,7 @@
     <string name="style_opened_one">Abierta 1 vez</string>
     <string name="style_opened_many">Abierta %1$d veces</string>
     <string name="style_opened_none">Sin abrir</string>
+    <string name="style_row_my_apps">Mis apps</string>
     <string name="style_home">Inicio</string>
     <string name="style_tv_settings">Ajustes de TV</string>
     <string name="style_roku">Roku clásico</string>

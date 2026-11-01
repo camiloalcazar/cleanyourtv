@@ -148,6 +148,12 @@ public class StyleNavTest {
         assertEquals(null, counts.get("b"));
     }
 
+    @Test public void aRowSlidesOnlyPastItsFirstTiles() {
+        assertEquals(0, StyleNav.rowScroll(0, 3));
+        assertEquals(0, StyleNav.rowScroll(3, 3));
+        assertEquals(2, StyleNav.rowScroll(5, 3));
+    }
+
     @Test public void anUnknownStyleIsTheDefaultLook() {
         assertEquals(LauncherStyle.WII, LauncherStyle.normalize("wii"));
         assertEquals(LauncherStyle.ROKU, LauncherStyle.normalize("roku"));

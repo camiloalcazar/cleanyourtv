@@ -36,6 +36,11 @@ final class StyleNav {
         return index;
     }
 
+    /** How many tiles a row slides left so the one at this column stays on screen: the first few stay put. */
+    static int rowScroll(int column, int lead) {
+        return Math.max(0, column - lead);
+    }
+
     /**
      * Packs tiles of {columns wide, rows high} column by column, always into the first free place, so a small tile
      * fills any hole a bigger one left; a tile never

@@ -90,7 +90,11 @@
     <string name="style_opened_one">Opened once</string>
     <string name="style_opened_many">Opened %1$d times</string>
     <string name="style_opened_none">Not opened yet</string>
-    <string name="style_tube_name" translatable="false">CanalTV</string>
+    <string name="style_tube_name" translatable="false">YouHome</string>
+    <string name="style_netflix" translatable="false">Netflix</string>
+    <string name="style_cinema_name" translatable="false">Homeflix</string>
+    <string name="style_profile_initial" translatable="false">C</string>
+    <string name="style_row_my_apps">My apps</string>
     <string name="style_home">Home</string>
     <string name="style_tv_settings">TV settings</string>
     <string name="style_options">Options</string>

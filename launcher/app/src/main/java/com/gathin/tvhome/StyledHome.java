@@ -80,7 +80,7 @@ final class StyledHome {
     }
 
     private final MainActivity activity;
-    private final boolean wii, classic, modern, metro, grid, match, tube;
+    private final boolean wii, classic, modern, metro, grid, match, tube, cinema;
     private final boolean animate;
     private final float density;
     private final int width, height;
@@ -142,6 +142,7 @@ final class StyledHome {
         grid = LauncherStyle.GRID.equals(style);
         match = LauncherStyle.TVMATCH.equals(style);
         tube = LauncherStyle.TUBE.equals(style);
+        cinema = LauncherStyle.CINEMA.equals(style);
         animate = cfg.animations && !cfg.reducedMotion;
         DisplayMetrics metrics = activity.getResources().getDisplayMetrics();
         density = metrics.density;
@@ -163,6 +164,7 @@ final class StyledHome {
         else if (grid) buildGrid(cfg);
         else if (match) buildMatch(cfg);
         else if (tube) buildTube();
+        else if (cinema) buildCinema();
         else buildModern();
         ClockFormat.apply(root, cfg.clockFormat);
     }
@@ -177,7 +179,9 @@ final class StyledHome {
         else if (grid) refreshUsage();
         else if (match) showDeck();
         else if (tube) refreshTube();
+        else if (cinema) showCinema();
         if (tube) AppOpenCounts.scan(activity, this::refreshTube);
+        if (cinema) AppOpenCounts.scan(activity, this::showCinema);
         if (grid) updateOnlinePill();
         root.post(this::restoreFocus);
     }
@@ -260,6 +264,10 @@ final class StyledHome {
     private void move(int dx, int dy) {
         if (tube) {
             moveTube(dx, dy);
+            return;
+        }
+        if (cinema) {
+            moveCinema(dx, dy);
             return;
         }
         if (buttonFocus >= 0) {
@@ -353,7 +361,7 @@ final class StyledHome {
     private void focusTile(int index) {
         buttonFocus = -1;
         focus = index;
-        focusKey = metro || tube ? cells.get(index).key : entries.get(index).component.flattenToShortString();
+        focusKey = metro || tube || cinema ? cells.get(index).key : entries.get(index).component.flattenToShortString();
         if (wii && index / WII_PAGE != page) {
             int direction = index / WII_PAGE > page ? 1 : -1;
             showPage(index / WII_PAGE);
@@ -365,6 +373,10 @@ final class StyledHome {
         }
         Cell cell = cells.get(wii ? index % WII_PAGE : index);
         cell.view.requestFocus();
+        if (cinema) {
+            showCinemaFocus(cell);
+            return;
+        }
         if (wii) return;
         if (metro) {
             keepVisibleSideways(cell);
@@ -398,7 +410,7 @@ final class StyledHome {
             if (modern) dimOthers();
         } else if (tube && cells.isEmpty()) {
             focusButton(TUBE_PILLS + tubeTab);
-        } else if (metro || tube) {
+        } else if (metro || tube || cinema) {
             if (!cells.isEmpty()) {
                 int index = -1;
                 for (int i = 0; i < cells.size(); i++) if (cells.get(i).key.equals(focusKey)) index = i;
@@ -442,6 +454,10 @@ final class StyledHome {
             fillClassic();
         } else if (metro) {
             fillMetro();
+        } else if (cinema) {
+            allEntries.clear();
+            allEntries.addAll(entries);
+            showCinema();
         } else if (tube) {
             allEntries.clear();
             allEntries.addAll(entries);
@@ -544,6 +560,7 @@ final class StyledHome {
         if (wii) return rounded(Color.TRANSPARENT, WiiSkin.SELECT_BLUE, 3, cornerDp() - 1.5f);
         if (grid) return rounded(Color.TRANSPARENT, GRID_YELLOW, 3, 0);
         if (tube) return rounded(Color.TRANSPARENT, Color.WHITE, 3, cornerDp() - 1);
+        if (cinema) return rounded(Color.TRANSPARENT, Color.WHITE, 2.5f, cornerDp() - 1);
         if (classic) return rounded(Color.TRANSPARENT, 0xFFD6D4DA, 5, .5f);
         // White, with a dark hairline inside it so that it also shows on a white banner.
         android.graphics.drawable.LayerDrawable frame = new android.graphics.drawable.LayerDrawable(new Drawable[]{
@@ -591,7 +608,7 @@ final class StyledHome {
         card.addView(name, nameLp);
         Cell cell = new Cell(card, art, name);
         card.setOnClickListener(v -> open(cell));
-        final float grown = classic ? 1.1f : 1.04f;
+        final float grown = classic ? 1.1f : cinema ? 1.08f : 1.04f;
         card.setOnFocusChangeListener((v, focused) -> {
             // Also on a cell a page turn has just emptied: it was focused, and must not stay enlarged.
             Drawable ring = focused && (cell.entry != null || cell.action != null) ? ring() : null;
@@ -1333,7 +1350,7 @@ final class StyledHome {
 
     /** Measured on the app's own screens, as pixels of a 1920x1080 screen. */
     private static final float TUBE_LEFT = 156, TUBE_TOP = 249, TUBE_W = 528, TUBE_H = 297, TUBE_PITCH_X = 564, TUBE_PITCH_Y = 405;
-    private static final int TUBE_PILLS = 4, TUBE_COLUMNS = 3, TUBE_INPUTS = 3;
+    private static final int TUBE_PILLS = 4, TUBE_PROFILE = 8, TUBE_COLUMNS = 3, TUBE_INPUTS = 3;
     private int tubeTab;
     private String tubeFilter = "";
     private TextView tubeHeading;
@@ -1395,14 +1412,41 @@ final class StyledHome {
         time.setSingleLine(true);
         time.setGravity(Gravity.CENTER_VERTICAL | Gravity.END);
         root.addView(time, at(px(240), py(62), px(1190), py(48)));
-        // The style's own mark, where the original has its brand: a red TV and a name of its own.
+        // The style's own mark, where the original has its brand: a white house on a red disc, and its own name.
         ImageView mark = new ImageView(activity);
-        mark.setImageResource(R.drawable.ic_livetv);
-        mark.setColorFilter(0xFFE53935);
-        root.addView(mark, at(py(56), py(56), px(1490), py(50)));
+        mark.setImageResource(R.drawable.ic_home_filled);
+        mark.setColorFilter(Color.WHITE);
+        mark.setPadding(py(12), py(11), py(12), py(13));
+        GradientDrawable markDisc = new GradientDrawable();
+        markDisc.setShape(GradientDrawable.OVAL);
+        markDisc.setColor(0xFFE53935);
+        mark.setBackground(markDisc);
+        root.addView(mark, at(py(58), py(58), px(1490), py(50)));
         root.addView(text(activity.getString(R.string.style_tube_name), 40, Color.WHITE,
                 Typeface.create(medium, Typeface.BOLD), Gravity.CENTER_VERTICAL), at(px(300), py(62), px(1560), py(48)));
+        View profile = profileCircle(false);
+        root.addView(profile, at(py(62), py(62), px(78) - py(31), py(48)));
+        buttons.add(profile);
         paintTubePills();
+    }
+
+    /** A person's circle: a coloured disc with an initial, drawn here. OK opens the quick menu. */
+    private View profileCircle(boolean alignEnd) {
+        TextView circle = text(activity.getString(R.string.style_profile_initial), 32, Color.WHITE, medium, Gravity.CENTER);
+        GradientDrawable disc = new GradientDrawable();
+        disc.setShape(GradientDrawable.OVAL);
+        disc.setColor(0xFF3F6FD8);
+        circle.setBackground(disc);
+        circle.setContentDescription(activity.getString(R.string.settings));
+        circle.setOnFocusChangeListener((v, focused) -> {
+            GradientDrawable look = new GradientDrawable();
+            look.setShape(GradientDrawable.OVAL);
+            look.setColor(0xFF3F6FD8);
+            if (focused) look.setStroke(dp(2.5f), Color.WHITE);
+            v.setBackground(look);
+        });
+        click(circle, () -> activity.styledProfileMenu(circle, alignEnd));
+        return circle;
     }
 
     private void paintTubePills() {
@@ -1417,18 +1461,22 @@ final class StyledHome {
     }
 
     private void moveTube(int dx, int dy) {
-        if (buttonFocus >= TUBE_PILLS) {
+        if (buttonFocus == TUBE_PROFILE) {
+            if (dx > 0) focusButton(TUBE_PILLS);
+            else if (dy > 0) focusButton(0);
+        } else if (buttonFocus >= TUBE_PILLS) {
             if (dx != 0) {
                 int next = buttonFocus + dx;
-                if (next < TUBE_PILLS) focusButton(0);
-                else if (next < buttons.size()) focusButton(next);
+                if (next < TUBE_PILLS) focusButton(TUBE_PROFILE);
+                else if (next < TUBE_PROFILE) focusButton(next);
             } else if (dy > 0 && !cells.isEmpty()) {
                 focusTile(Math.min(focus, cells.size() - 1));
             }
         } else if (buttonFocus >= 0) {
             if (dy != 0) {
                 int next = buttonFocus + dy;
-                if (next >= 0 && next < TUBE_PILLS) focusButton(next);
+                if (next < 0) focusButton(TUBE_PROFILE);
+                else if (next < TUBE_PILLS) focusButton(next);
             } else if (dx > 0) {
                 if (cells.isEmpty()) focusButton(TUBE_PILLS + tubeTab);
                 else focusTile(Math.min(focus, cells.size() - 1));
@@ -1587,6 +1635,284 @@ final class StyledHome {
     private void refreshTube() {
         usage = new AppUsage(activity);
         for (Cell cell : cells) if (cell.entry != null) showTubeMarks(cell);
+    }
+
+    // ---- Netflix ---------------------------------------------------------------------------------------
+
+    /** As pixels of a 1920x1080 screen: the rows are 16:9 so an app's banner stays whole. */
+    private static final float CINE_LEFT = 96, CINE_ROWS_TOP = 612, CINE_W = 356, CINE_H = 200, CINE_PITCH_X = 376, CINE_PITCH_Y = 282;
+    private static final int CINE_OPEN = 0, CINE_PROFILE = 1;
+    private FrameLayout cineRows;
+    private final List<FrameLayout> cineRowViews = new ArrayList<>();
+    private final List<TextView> cineHeadings = new ArrayList<>();
+    private TextView cineTitle, cineLine;
+    private ImageView cineArt;
+    private FrameLayout cineStage;
+    private Cell cineShown;
+    private final Runnable cineUpdate = this::showCinemaHero;
+
+    private void buildCinema() {
+        root.setBackgroundColor(0xFF141414);
+        activity.getWindow().setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(0xFF141414));
+        usage = new AppUsage(activity);
+
+        cineStage = new FrameLayout(activity);
+        cineArt = new ImageView(activity);
+        cineArt.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        cineStage.addView(cineArt, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        View fadeSide = new View(activity);
+        fadeSide.setBackground(new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT, new int[]{0xFF141414, 0x00141414}));
+        cineStage.addView(fadeSide, new FrameLayout.LayoutParams(px(380), ViewGroup.LayoutParams.MATCH_PARENT));
+        View fadeLow = new View(activity);
+        fadeLow.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[]{0x00141414, 0xFF141414}));
+        cineStage.addView(fadeLow, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, py(150), Gravity.BOTTOM));
+        // Keeps the clock and the profile circle readable over a white banner.
+        View fadeTop = new View(activity);
+        fadeTop.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[]{0xE0141414, 0x00141414}));
+        cineStage.addView(fadeTop, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, py(130), Gravity.TOP));
+        root.addView(cineStage, at(px(1000), py(562), px(920), 0));
+
+        View square = new View(activity);
+        square.setBackground(rounded(0xFFD63A3A, 0, 0, 4));
+        root.addView(square, at(py(40), py(40), px(CINE_LEFT), py(34)));
+        root.addView(text(activity.getString(R.string.style_cinema_name), 40, Color.WHITE,
+                Typeface.create(medium, Typeface.BOLD), Gravity.CENTER_VERTICAL), at(px(400), py(60), px(CINE_LEFT + 54), py(24)));
+
+        TextClock time = new TextClock(activity);
+        time.setFormat12Hour("h:mm a");
+        time.setFormat24Hour("H:mm");
+        time.setTextSize(TypedValue.COMPLEX_UNIT_PX, py(30));
+        time.setTextColor(Color.WHITE);
+        time.setTypeface(regular);
+        time.setSingleLine(true);
+        time.setGravity(Gravity.CENTER_VERTICAL | Gravity.END);
+        root.addView(time, at(px(300), py(60), px(1460), py(24)));
+
+        cineTitle = text("", 84, Color.WHITE, Typeface.create(medium, Typeface.BOLD), Gravity.CENTER_VERTICAL);
+        cineTitle.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        root.addView(cineTitle, at(px(860), py(110), px(CINE_LEFT), py(170)));
+        cineLine = text("", 30, 0xFFBDBDBD, regular, Gravity.CENTER_VERTICAL);
+        root.addView(cineLine, at(px(860), py(46), px(CINE_LEFT), py(290)));
+
+        TextView open = text("▶  " + activity.getString(R.string.style_hint_open), 34, 0xFF141414, medium, Gravity.CENTER);
+        open.setBackground(rounded(0xFFE6E6E6, 0, 0, 5));
+        open.setOnFocusChangeListener((v, focused) -> {
+            v.setBackground(focused ? rounded(Color.WHITE, 0xFF8A8A8A, 2.5f, 5) : rounded(0xFFE6E6E6, 0, 0, 5));
+            float scale = focused ? 1.06f : 1f;
+            v.setScaleX(scale);
+            v.setScaleY(scale);
+        });
+        root.addView(open, at(px(230), py(72), px(CINE_LEFT), py(360)));
+        open.setFocusable(true);
+        open.setClickable(true);
+        open.setOnClickListener(v -> {
+            if (focus < cells.size()) open(cells.get(focus));
+        });
+        buttons.add(open);
+
+        View profile = profileCircle(true);
+        profile.setId(R.id.btnInputs);
+        root.addView(profile, at(py(60), py(60), px(1780), py(24)));
+        buttons.add(profile);
+
+        FrameLayout window = new FrameLayout(activity);
+        cineRows = new FrameLayout(activity);
+        cineRows.setClipChildren(false);
+        window.addView(cineRows, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, py(CINE_PITCH_Y) * 3));
+        root.addView(window, at(width, height - py(CINE_ROWS_TOP), 0, py(CINE_ROWS_TOP)));
+    }
+
+    private FrameLayout cineRow(int label) {
+        int index = cineRowViews.size();
+        FrameLayout row = new FrameLayout(activity);
+        row.setClipChildren(false);
+        cineRows.addView(row, at(width * 8, py(CINE_PITCH_Y), 0, index * py(CINE_PITCH_Y)));
+        TextView heading = text(activity.getString(label), 30, Color.WHITE, medium, Gravity.CENTER_VERTICAL);
+        cineRows.addView(heading, at(px(800), py(44), px(CINE_LEFT), index * py(CINE_PITCH_Y) + py(4)));
+        cineRowViews.add(row);
+        cineHeadings.add(heading);
+        return row;
+    }
+
+    private Cell cineCell(FrameLayout row, int section, int column, String key) {
+        int w = px(CINE_W), h = py(CINE_H);
+        Cell cell = newCell(w, h);
+        cell.section = section;
+        cell.key = key;
+        place(cell, px(CINE_LEFT + column * CINE_PITCH_X), py(58), w, h);
+        cell.name.setVisibility(View.GONE);
+        cell.view.setFocusable(true);
+        row.addView(cell.view);
+        cells.add(cell);
+        return cell;
+    }
+
+    /** The whole banner on a blur of its edges; an app with only an icon shows it with its name. */
+    private void cineApp(Cell cell, AppAdapter.Entry entry) {
+        cell.entry = entry;
+        cell.view.setContentDescription(entry.label);
+        if (entry.banner != null) {
+            Drawable blur = blurCache.get(entry.pkg);
+            if (blur == null) {
+                blur = RokuSkin.blurred(activity.getResources(), entry.banner);
+                blurCache.put(entry.pkg, blur);
+            }
+            cell.view.setBackground(blur.getConstantState().newDrawable().mutate());
+            cell.art.setScaleType(ImageView.ScaleType.FIT_CENTER);
+            cell.art.setImageDrawable(entry.banner);
+        } else {
+            cineLabelled(cell, entry.label, entry.icon);
+        }
+    }
+
+    private void cineLabelled(Cell cell, String label, Drawable icon) {
+        cell.view.setBackgroundColor(0xFF2A2A2A);
+        cell.art.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        cell.art.setImageDrawable(icon);
+        cell.art.setPadding(cell.w / 3, cell.h / 6, cell.w / 3, cell.h * 2 / 5);
+        cell.name.setText(label);
+        cell.name.setTextColor(Color.WHITE);
+        cell.name.setVisibility(View.VISIBLE);
+        cell.view.setContentDescription(label);
+    }
+
+    private void cineAction(FrameLayout row, int section, int column, String key, String label, int icon, Runnable action) {
+        Cell cell = cineCell(row, section, column, key);
+        cell.action = action;
+        cineLabelled(cell, label, activity.getDrawable(icon));
+    }
+
+    /** My apps, the ones used so far with the latest first, then the inputs and the settings. */
+    private void showCinema() {
+        if (allEntries.isEmpty() && entries.isEmpty()) return;
+        usage = new AppUsage(activity);
+        String keep = focusKey;
+        cineRows.removeAllViews();
+        cineRowViews.clear();
+        cineHeadings.clear();
+        cells.clear();
+        int section = 0;
+        FrameLayout mine = cineRow(R.string.style_row_my_apps);
+        int column = 0;
+        for (AppAdapter.Entry entry : allEntries) {
+            cineApp(cineCell(mine, section, column++, "apps:" + entry.component.flattenToShortString()), entry);
+        }
+        List<AppAdapter.Entry> used = new ArrayList<>();
+        final Map<String, Long> times = new HashMap<>();
+        for (AppAdapter.Entry entry : allEntries) {
+            long then = usage.lastUsed(entry.pkg);
+            times.put(entry.pkg, then);
+            if (then > 0) used.add(entry);
+        }
+        if (!used.isEmpty()) {
+            Collections.sort(used, (a, b) -> Long.compare(times.get(b.pkg), times.get(a.pkg)));
+            section++;
+            FrameLayout recent = cineRow(R.string.style_tab_recent);
+            column = 0;
+            for (AppAdapter.Entry entry : used) {
+                cineApp(cineCell(recent, section, column++, "recent:" + entry.component.flattenToShortString()), entry);
+            }
+        }
+        section++;
+        FrameLayout inputs = cineRow(R.string.inputs);
+        column = 0;
+        for (String[] input : activity.styledInputList()) {
+            final String id = input[0];
+            int icon = input[1].toUpperCase(Locale.ROOT).contains("HDMI") ? R.drawable.ic_input : R.drawable.ic_av;
+            cineAction(inputs, section, column++, "input:" + id, input[1], icon, () -> activity.styledOpenInput(id));
+        }
+        if (activity.styledHasLiveTv()) {
+            cineAction(inputs, section, column++, "live", activity.getString(R.string.live_tv), R.drawable.ic_livetv, activity::styledLiveTv);
+        }
+        cineAction(inputs, section, column, "settings", activity.getString(R.string.settings), R.drawable.ic_settings, activity::styledLauncherSettings);
+        focusKey = keep;
+        focus = 0;
+        for (int i = 0; i < cells.size(); i++) if (cells.get(i).key.equals(keep)) focus = i;
+        cineShown = null;
+        positionCinema(cells.get(focus), false);
+        showCinemaHero();
+    }
+
+    private void moveCinema(int dx, int dy) {
+        if (buttonFocus >= 0) {
+            if (dy > 0) focusTile(Math.min(focus, cells.size() - 1));
+            else if (buttonFocus == CINE_OPEN && dx > 0) focusButton(CINE_PROFILE);
+            else if (buttonFocus == CINE_PROFILE && dx < 0) focusButton(CINE_OPEN);
+            return;
+        }
+        Cell now = cells.get(focus);
+        if (dx != 0) {
+            int next = focus + dx;
+            if (next >= 0 && next < cells.size() && cells.get(next).section == now.section) focusTile(next);
+            return;
+        }
+        int row = now.section + dy;
+        if (row < 0) {
+            focusButton(CINE_OPEN);
+            return;
+        }
+        int column = cineColumn(focus);
+        int best = -1;
+        for (int i = 0; i < cells.size(); i++) {
+            if (cells.get(i).section != row) continue;
+            if (best < 0 || cineColumn(i) <= column) best = i;
+        }
+        if (best >= 0) focusTile(best);
+    }
+
+    private int cineColumn(int index) {
+        int column = 0;
+        while (index - column > 0 && cells.get(index - column - 1).section == cells.get(index).section) column++;
+        return column;
+    }
+
+    private void showCinemaFocus(Cell cell) {
+        positionCinema(cell, animate);
+        root.removeCallbacks(cineUpdate);
+        root.postDelayed(cineUpdate, animate ? 160 : 0);
+    }
+
+    /** The active row sits at the top of the rows; inside it, the first tiles stay put and the rest slide left. */
+    private void positionCinema(Cell cell, boolean smooth) {
+        float y = -cell.section * py(CINE_PITCH_Y);
+        float x = -StyleNav.rowScroll(cineColumn(cells.indexOf(cell)), 3) * px(CINE_PITCH_X);
+        FrameLayout row = cineRowViews.get(cell.section);
+        if (smooth) {
+            cineRows.animate().translationY(y).setDuration(200).start();
+            row.animate().translationX(x).setDuration(200).start();
+        } else {
+            cineRows.setTranslationY(y);
+            row.setTranslationX(x);
+        }
+    }
+
+    private void showCinemaHero() {
+        if (focus >= cells.size()) return;
+        Cell cell = cells.get(focus);
+        if (cell == cineShown) return;
+        cineShown = cell;
+        if (cell.entry == null) {
+            cineTitle.setText(cell.name.getText());
+            cineLine.setText("");
+            cineArt.setImageDrawable(null);
+            cineStage.setBackground(null);
+            return;
+        }
+        AppAdapter.Entry entry = cell.entry;
+        cineTitle.setText(entry.label);
+        String ago = AppUsage.ago(System.currentTimeMillis(), usage.lastUsed(entry.pkg));
+        int opened = AppOpenCounts.get(activity, entry.pkg);
+        String count = opened == 0 ? activity.getString(R.string.style_opened_none) : opened == 1
+                ? activity.getString(R.string.style_opened_one) : activity.getString(R.string.style_opened_many, opened);
+        cineLine.setText(ago == null ? count : activity.getString(R.string.style_used_ago, ago) + " · " + count);
+        if (entry.banner != null) {
+            Drawable blur = blurCache.get(entry.pkg);
+            cineStage.setBackground(blur == null ? null : blur.getConstantState().newDrawable().mutate());
+            cineArt.setImageDrawable(entry.banner);
+        } else {
+            cineStage.setBackground(null);
+            cineArt.setImageDrawable(entry.icon);
+        }
     }
 
     // ---- tvmatch ---------------------------------------------------------------------------------------

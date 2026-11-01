@@ -82,6 +82,7 @@
     <string name="style_opened_one">נפתחה פעם אחת</string>
     <string name="style_opened_many">נפתחה %1$d פעמים</string>
     <string name="style_opened_none">טרם נפתחה</string>
+    <string name="style_row_my_apps">האפליקציות שלי</string>
     <string name="style_home">בית</string>
     <string name="style_tv_settings">הגדרות טלוויזיה</string>
     <string name="style_options">אפשרויות</string>

@@ -7,11 +7,11 @@ final class LauncherStyle {
     private LauncherStyle() {}
 
     static final String KEY = "launcher_style";
-    static final String APPLE = "apple", WII = "wii", ROKU = "roku", ROKU_NEW = "roku_new", METRO = "metro", GRID = "grid", TVMATCH = "tvmatch", TUBE = "tube";
+    static final String APPLE = "apple", WII = "wii", ROKU = "roku", ROKU_NEW = "roku_new", METRO = "metro", GRID = "grid", TVMATCH = "tvmatch", TUBE = "tube", CINEMA = "cinema";
 
     /** Anything unknown is the default look, so a bad value can never leave the TV without a Home. */
     static String normalize(String value) {
-        return WII.equals(value) || ROKU.equals(value) || ROKU_NEW.equals(value) || METRO.equals(value) || GRID.equals(value) || TVMATCH.equals(value) || TUBE.equals(value) ? value : APPLE;
+        return WII.equals(value) || ROKU.equals(value) || ROKU_NEW.equals(value) || METRO.equals(value) || GRID.equals(value) || TVMATCH.equals(value) || TUBE.equals(value) || CINEMA.equals(value) ? value : APPLE;
     }
 
     static String read(Context context) {
