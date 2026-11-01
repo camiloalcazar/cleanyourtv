@@ -42,7 +42,7 @@ final class StyledHome {
     private static final String TAG = "StyledHome";
     private static final int WII_COLUMNS = 4, WII_PAGE = 12, CLASSIC_COLUMNS = 4, GRID_COLUMNS = 6;
     /** The grid style's buttons: the top bar first (circle, search, status, settings), then the bottom tabs. */
-    private static final int GRID_SEARCH = 1, GRID_TABS = 4, GRID_YELLOW = 0xFFFFCC00, GRID_BAR = 0xFF111111;
+    private static final int GRID_SEARCH = 1, GRID_TABS = 4, GRID_YELLOW = 0xFFE8B040, GRID_BAR = 0xFF111111;
     private static final int WII_TEXT = 0xFF6F767B;
 
     /** A style whose screen cannot be built falls back to the default look: a TV must never lose its Home. */
