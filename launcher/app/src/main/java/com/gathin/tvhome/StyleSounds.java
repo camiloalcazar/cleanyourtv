@@ -14,6 +14,13 @@ final class StyleSounds {
     private static final int RATE = 44100;
     static final int TICK = 0, PAGE = 1, SELECT = 2;
 
+    /** A second set of the launcher's own tones: lower and rounder, for the grid style. */
+    private final boolean soft;
+
+    StyleSounds(boolean soft) {
+        this.soft = soft;
+    }
+
     private HandlerThread thread;
     private Handler handler;
     private final AudioTrack[] tracks = new AudioTrack[3];
@@ -24,9 +31,10 @@ final class StyleSounds {
         thread.start();
         handler = new Handler(thread.getLooper());
         handler.post(() -> {
-            tracks[TICK] = track(tone(45, 1500, 1500, 60));
-            tracks[PAGE] = track(tone(130, 700, 1250, 18));
-            tracks[SELECT] = track(join(tone(70, 880, 880, 25), tone(130, 1320, 1320, 18)));
+            tracks[TICK] = track(soft ? tone(38, 520, 640, 70) : tone(45, 1500, 1500, 60));
+            tracks[PAGE] = track(soft ? tone(90, 420, 620, 28) : tone(130, 700, 1250, 18));
+            tracks[SELECT] = track(soft ? join(tone(55, 587, 587, 35), tone(120, 784, 784, 22))
+                    : join(tone(70, 880, 880, 25), tone(130, 1320, 1320, 18)));
         });
     }
 

@@ -154,7 +154,7 @@ final class StyledHome {
         root = new FrameLayout(activity);
         // On the Roku screen this is what keeps the scrolling apps out from under the top bar.
         root.setClipChildren(!wii);
-        sounds = wii ? new StyleSounds() : null;
+        sounds = wii || grid ? new StyleSounds(grid) : null;
         if (wii) buildWii(cfg);
         else if (classic) buildClassic(cfg);
         else if (metro) buildMetro();
@@ -260,6 +260,7 @@ final class StyledHome {
             focusButton(focus % WII_COLUMNS < WII_COLUMNS / 2 ? 0 : 1);
             play(StyleSounds.TICK);
         } else if (grid) {
+            if (dy != 0) play(StyleSounds.TICK);
             if (dy < 0) focusButton(GRID_SEARCH);
             else if (dy > 0) focusButton(GRID_TABS + gridTab);
         } else if ((classic || modern) && dx < 0) {
@@ -291,13 +292,18 @@ final class StyledHome {
             boolean top = buttonFocus < GRID_TABS;
             if (dx != 0) {
                 int next = buttonFocus + dx;
-                if (next >= (top ? 0 : GRID_TABS) && next < (top ? GRID_TABS : buttons.size())) focusButton(next);
+                if (next >= (top ? 0 : GRID_TABS) && next < (top ? GRID_TABS : buttons.size())) {
+                    focusButton(next);
+                    play(StyleSounds.TICK);
+                }
             } else if (top && dy > 0) {
                 if (entries.isEmpty()) focusButton(GRID_TABS + gridTab);
                 else focusTile(Math.min(focus, entries.size() - 1));
+                play(StyleSounds.TICK);
             } else if (!top && dy < 0) {
                 if (entries.isEmpty()) focusButton(GRID_SEARCH);
                 else focusTile(Math.min(focus, entries.size() - 1));
+                play(StyleSounds.TICK);
             }
             return;
         }
@@ -1275,6 +1281,7 @@ final class StyledHome {
     private void toggleFavorite(Cell cell) {
         if (cell.entry == null) return;
         boolean added = favorites.toggle(cell.entry.pkg);
+        play(StyleSounds.SELECT);
         android.widget.Toast.makeText(activity, activity.getString(
                 added ? R.string.style_favorite_added : R.string.style_favorite_removed, cell.entry.label),
                 android.widget.Toast.LENGTH_SHORT).show();
