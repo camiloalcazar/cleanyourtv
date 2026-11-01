@@ -28,8 +28,14 @@ public final class LauncherSettingsActivity extends Activity {
 
     static final String EXTRA_REORDER = "com.gathin.tvhome.extra.REORDER_FROM_SETTINGS";
     private SharedPreferences choices;
-    private static final String[] STYLES = {LauncherStyle.APPLE, LauncherStyle.WII, LauncherStyle.ROKU, LauncherStyle.ROKU_NEW, LauncherStyle.METRO, LauncherStyle.GRID};
-    private final TextView[] styleChoices = new TextView[STYLES.length];
+    /** The picker's styles, in order, each with its name: a new style only needs a line here and a case in StyleThumb. */
+    private static final String[] STYLES = {LauncherStyle.APPLE, LauncherStyle.WII, LauncherStyle.ROKU,
+            LauncherStyle.ROKU_NEW, LauncherStyle.METRO, LauncherStyle.GRID, LauncherStyle.TVMATCH};
+    private static final int[] STYLE_NAMES = {R.string.style_apple, R.string.style_wii, R.string.style_roku,
+            R.string.style_roku_new, R.string.style_metro, R.string.style_grid, R.string.style_tvmatch};
+    private static final int PICKER_COLUMNS = 4;
+    private final View[] styleChoices = new View[STYLES.length];
+    private final View[] styleChecks = new View[STYLES.length];
     private String style;
     private final TextView[] columnChoices = new TextView[4];
     private final TextView[] rowChoices = new TextView[4];
@@ -56,18 +62,7 @@ public final class LauncherSettingsActivity extends Activity {
         choices = getSharedPreferences(Config.SETTINGS_NAME, MODE_PRIVATE);
         Config config = Config.load(this);
         style = LauncherStyle.read(this);
-        int[] styleIds = {R.id.styleApple, R.id.styleWii, R.id.styleRoku, R.id.styleRokuNew, R.id.styleMetro, R.id.styleGrid};
-        for (int i = 0; i < styleIds.length; i++) {
-            final String value = STYLES[i];
-            styleChoices[i] = findViewById(styleIds[i]);
-            styleChoices[i].setOnClickListener(v -> {
-                if (value.equals(style)) return;
-                style = value;
-                LauncherStyle.save(this, value);
-                changed();
-                refresh();
-            });
-        }
+        buildStylePicker();
         View reorderChoice = findViewById(R.id.reorderChoice);
         reorderChoice.setVisibility(config.launcherSettingsButton ? View.VISIBLE : View.GONE);
         reorderChoice.setOnClickListener(v -> {
@@ -138,7 +133,6 @@ public final class LauncherSettingsActivity extends Activity {
             reverseRow(rowChoices);
             reverseRow(dockChoices);
             reverseRow(clockChoices);
-            reverseRow(styleChoices);
         }
         wallpaperChoice = findViewById(R.id.wallpaperChoice);
         wallpaperChoice.setOnClickListener(v -> showWallpaperPicker());
@@ -193,6 +187,88 @@ public final class LauncherSettingsActivity extends Activity {
         for (int i = 0; i < STYLES.length; i++) {
             if (STYLES[i].equals(style)) styleChoices[i].requestFocus();
         }
+    }
+
+    /** A grid of small drawings, each with its name; the active one carries a check. It scrolls with the screen. */
+    private void buildStylePicker() {
+        LinearLayout picker = findViewById(R.id.stylePicker);
+        float density = getResources().getDisplayMetrics().density;
+        int gap = Math.round(10 * density);
+        LinearLayout row = null;
+        for (int i = 0; i < STYLES.length; i++) {
+            if (i % PICKER_COLUMNS == 0) {
+                row = new LinearLayout(this);
+                row.setOrientation(LinearLayout.HORIZONTAL);
+                LinearLayout.LayoutParams rowLp = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT);
+                rowLp.bottomMargin = gap;
+                picker.addView(row, rowLp);
+            }
+            final String value = STYLES[i];
+            LinearLayout item = new LinearLayout(this);
+            item.setOrientation(LinearLayout.VERTICAL);
+            item.setBackgroundResource(R.drawable.settings_choice_bg);
+            item.setPadding(gap, gap, gap, gap);
+            item.setFocusable(true);
+            item.setClickable(true);
+            final int nameRes = STYLE_NAMES[i];
+            item.setOnFocusChangeListener((v, focused) -> {
+                if (focused) showPreview(value, nameRes);
+            });
+            android.widget.FrameLayout frame = new android.widget.FrameLayout(this);
+            frame.addView(new StyleThumb(this, value), new android.widget.FrameLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, Math.round(66 * density)));
+            android.widget.ImageView check = new android.widget.ImageView(this);
+            check.setImageResource(R.drawable.ic_check);
+            int pad = Math.round(3 * density);
+            check.setPadding(pad, pad, pad, pad);
+            android.graphics.drawable.GradientDrawable badge = new android.graphics.drawable.GradientDrawable();
+            badge.setShape(android.graphics.drawable.GradientDrawable.OVAL);
+            badge.setColor(0xFF2E9E5B);
+            check.setBackground(badge);
+            android.widget.FrameLayout.LayoutParams checkLp = new android.widget.FrameLayout.LayoutParams(
+                    Math.round(20 * density), Math.round(20 * density), android.view.Gravity.TOP | android.view.Gravity.END);
+            checkLp.topMargin = pad;
+            checkLp.rightMargin = pad;
+            frame.addView(check, checkLp);
+            item.addView(frame);
+            TextView name = new TextView(this);
+            name.setText(STYLE_NAMES[i]);
+            name.setTextColor(getColorStateList(R.color.settings_text));
+            name.setDuplicateParentStateEnabled(true);
+            name.setSingleLine(true);
+            name.setTextSize(15);
+            name.setGravity(android.view.Gravity.CENTER);
+            name.setPadding(0, Math.round(6 * density), 0, 0);
+            item.addView(name);
+            item.setOnClickListener(v -> {
+                if (value.equals(style)) return;
+                style = value;
+                LauncherStyle.save(this, value);
+                changed();
+                refresh();
+            });
+            LinearLayout.LayoutParams itemLp = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1);
+            itemLp.rightMargin = gap;
+            row.addView(item, itemLp);
+            styleChoices[i] = item;
+            styleChecks[i] = check;
+        }
+        // A short last row keeps its items the same size as the others.
+        while (row != null && row.getChildCount() < PICKER_COLUMNS) {
+            View spacer = new View(this);
+            LinearLayout.LayoutParams spacerLp = new LinearLayout.LayoutParams(0, 1, 1);
+            spacerLp.rightMargin = gap;
+            row.addView(spacer, spacerLp);
+        }
+    }
+
+    /** The big drawing beside the settings: the style under the focus, else the active one. */
+    private void showPreview(String value, int nameRes) {
+        android.widget.FrameLayout preview = findViewById(R.id.stylePreview);
+        preview.removeAllViews();
+        preview.addView(new StyleThumb(this, value));
+        ((TextView) findViewById(R.id.stylePreviewName)).setText(nameRes);
     }
 
     private void reverseRow(TextView[] views) {
@@ -312,7 +388,12 @@ public final class LauncherSettingsActivity extends Activity {
 
     private void refresh() {
         boolean defaultLook = LauncherStyle.APPLE.equals(style);
-        for (int i = 0; i < STYLES.length; i++) styleChoices[i].setSelected(STYLES[i].equals(style));
+        for (int i = 0; i < STYLES.length; i++) {
+            boolean active = STYLES[i].equals(style);
+            styleChoices[i].setSelected(active);
+            styleChecks[i].setVisibility(active ? View.VISIBLE : View.GONE);
+            if (active) showPreview(STYLES[i], STYLE_NAMES[i]);
+        }
         // These only change the default screen; the other styles have a fixed layout of their own.
         int defaultOnly = defaultLook ? View.VISIBLE : View.GONE;
         findViewById(R.id.defaultLookChoices).setVisibility(defaultOnly);

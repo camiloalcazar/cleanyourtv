@@ -65,6 +65,17 @@
     <string name="style_favorite_added">%1$s נוספה למועדפות</string>
     <string name="style_favorite_removed">%1$s הוסרה מהמועדפות</string>
     <string name="style_search_hint">חיפוש אפליקציות…</string>
+    <string name="style_used_ago">בשימוש לפני %1$s</string>
+    <string name="style_stamp_open">פתיחה</string>
+    <string name="style_match">יש התאמה!</string>
+    <string name="style_opening">פותח את %1$s</string>
+    <string name="style_hint_next">האפליקציה הבאה</string>
+    <string name="style_hint_open">פתיחה</string>
+    <string name="style_hint_favorite">מועדפת</string>
+    <string name="style_hint_ok">OK = פתיחה</string>
+    <string name="style_section_layout">פריסה</string>
+    <string name="style_section_effects">שעון ואפקטים</string>
+    <string name="style_section_system">מערכת</string>
     <string name="style_home">בית</string>
     <string name="style_tv_settings">הגדרות טלוויזיה</string>
     <string name="style_options">אפשרויות</string>

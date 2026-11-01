@@ -71,6 +71,18 @@
     <string name="style_favorite_removed">%1$s removed from favorites</string>
     <string name="style_search_hint">Search apps…</string>
     <string name="style_grid_name" translatable="false">GridTV</string>
+    <string name="style_tvmatch" translatable="false">tvmatch</string>
+    <string name="style_used_ago">Used %1$s ago</string>
+    <string name="style_stamp_open">OPEN</string>
+    <string name="style_match">It\'s a match!</string>
+    <string name="style_opening">Opening %1$s</string>
+    <string name="style_hint_next">Next app</string>
+    <string name="style_hint_open">Open</string>
+    <string name="style_hint_favorite">Favorite</string>
+    <string name="style_hint_ok">OK = Open</string>
+    <string name="style_section_layout">Layout</string>
+    <string name="style_section_effects">Clock and effects</string>
+    <string name="style_section_system">System</string>
     <string name="style_home">Home</string>
     <string name="style_tv_settings">TV settings</string>
     <string name="style_options">Options</string>

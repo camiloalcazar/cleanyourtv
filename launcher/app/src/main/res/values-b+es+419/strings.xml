@@ -64,6 +64,17 @@
     <string name="style_favorite_added">%1$s añadida a favoritas</string>
     <string name="style_favorite_removed">%1$s quitada de favoritas</string>
     <string name="style_search_hint">Buscar apps…</string>
+    <string name="style_used_ago">Usada hace %1$s</string>
+    <string name="style_stamp_open">ABRIR</string>
+    <string name="style_match">¡Es un match!</string>
+    <string name="style_opening">Abriendo %1$s</string>
+    <string name="style_hint_next">Siguiente app</string>
+    <string name="style_hint_open">Abrir</string>
+    <string name="style_hint_favorite">Favorita</string>
+    <string name="style_hint_ok">OK = Abrir</string>
+    <string name="style_section_layout">Diseño</string>
+    <string name="style_section_effects">Reloj y efectos</string>
+    <string name="style_section_system">Sistema</string>
     <string name="style_home">Inicio</string>
     <string name="style_tv_settings">Ajustes de TV</string>
     <string name="style_roku">Roku clásico</string>

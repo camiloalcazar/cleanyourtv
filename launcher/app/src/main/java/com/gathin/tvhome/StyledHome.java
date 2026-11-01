@@ -80,7 +80,7 @@ final class StyledHome {
     }
 
     private final MainActivity activity;
-    private final boolean wii, classic, modern, metro, grid;
+    private final boolean wii, classic, modern, metro, grid, match;
     private final boolean animate;
     private final float density;
     private final int width, height;
@@ -140,6 +140,7 @@ final class StyledHome {
         modern = LauncherStyle.ROKU_NEW.equals(style);
         metro = LauncherStyle.METRO.equals(style);
         grid = LauncherStyle.GRID.equals(style);
+        match = LauncherStyle.TVMATCH.equals(style);
         animate = cfg.animations && !cfg.reducedMotion;
         DisplayMetrics metrics = activity.getResources().getDisplayMetrics();
         density = metrics.density;
@@ -153,12 +154,13 @@ final class StyledHome {
         model.setSavedOrder(Order.ranks(order, cfg.dockApps), Order.docked(order, cfg.dockApps));
         root = new FrameLayout(activity);
         // On the Roku screen this is what keeps the scrolling apps out from under the top bar.
-        root.setClipChildren(!wii);
-        sounds = wii || grid ? new StyleSounds(grid) : null;
+        root.setClipChildren(!wii && !match);
+        sounds = wii || grid || match ? new StyleSounds(grid || match) : null;
         if (wii) buildWii(cfg);
         else if (classic) buildClassic(cfg);
         else if (metro) buildMetro();
         else if (grid) buildGrid(cfg);
+        else if (match) buildMatch(cfg);
         else buildModern();
         ClockFormat.apply(root, cfg.clockFormat);
     }
@@ -171,6 +173,7 @@ final class StyledHome {
         if (changed != null) packageSequence = changed.getSequenceNumber();
         if (!loaded || changed != null) reload();
         else if (grid) refreshUsage();
+        else if (match) showDeck();
         if (grid) updateOnlinePill();
         root.post(this::restoreFocus);
     }
@@ -201,6 +204,10 @@ final class StyledHome {
         if (metroScroll != null) metroScroll.scrollTo(0, 0);
         if (classic) setMenuOpen(true);
         if (modern) setRailOpen(false);
+        if (match) {
+            matchKey = null;
+            if (loaded) showDeck();
+        }
         if (loaded) restoreFocus();
     }
 
@@ -216,6 +223,7 @@ final class StyledHome {
             if (event.getAction() == KeyEvent.ACTION_DOWN) restoreFocus();
             return true;
         }
+        if (match) return onMatchKey(event, ok, arrow);
         int dx = 0, dy = 0;
         switch (event.getKeyCode()) {
             case KeyEvent.KEYCODE_DPAD_LEFT: dx = -1; break;
@@ -371,6 +379,11 @@ final class StyledHome {
 
     private void restoreFocus() {
         if (activity.isFinishing() || activity.isDestroyed()) return;
+        if (match) {
+            if (buttonFocus >= 0) focusButton(buttonFocus);
+            else root.requestFocus();
+            return;
+        }
         if (classic) layoutClassic();
         if (buttonFocus >= 0) {
             focusButton(buttonFocus);
@@ -419,6 +432,8 @@ final class StyledHome {
             fillClassic();
         } else if (metro) {
             fillMetro();
+        } else if (match) {
+            showDeck();
         } else if (grid) {
             allEntries.clear();
             allEntries.addAll(entries);
@@ -1297,6 +1312,424 @@ final class StyledHome {
         } else {
             showGridMarks(cell);
         }
+    }
+
+    // ---- tvmatch ---------------------------------------------------------------------------------------
+
+    /** One card: the whole banner on a blur of its edges, a gradient, the name and when the app was last used. */
+    private static final class MatchCard {
+        FrameLayout view;
+        ImageView art;
+        TextView name, sub, stamp, star;
+        AppAdapter.Entry entry;
+    }
+
+    private static final int MATCH_PINK = 0xFFFD3A73, MATCH_ORANGE = 0xFFFF7854, MATCH_GREEN = 0xFF3FD68C;
+    /** Measured on the approved mock-up, scaled from its 1470 pixels of width. */
+    private static final float CARD_LEFT = 646, CARD_TOP = 137, CARD_W = 627, CARD_H = 764;
+
+    private MatchCard frontCard, backCard;
+    private final List<AppAdapter.Entry> deck = new ArrayList<>();
+    private int deckIndex;
+    private String matchKey;
+    private boolean matchBusy;
+    private View matchOverlay;
+    private TextView matchOpening;
+
+    private void buildMatch(Config cfg) {
+        root.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[]{0xFFFAFAFA, 0xFFEEEEEE}));
+        activity.getWindow().setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(0xFFF4F4F4));
+        root.setFocusable(true);
+        // The card has no view of its own to focus: the root holds the focus until the remote goes down to the buttons.
+        root.setDescendantFocusability(ViewGroup.FOCUS_BEFORE_DESCENDANTS);
+        favorites = new AppFavorites(activity, cfg.dockApps);
+        usage = new AppUsage(activity);
+        is24 = ClockFormat.is24(activity, cfg.clockFormat);
+
+        TextClock time = new TextClock(activity);
+        String clock = (is24 ? "H:mm" : "h:mm a") + " · EEE d MMM";
+        time.setFormat12Hour(clock);
+        time.setFormat24Hour(clock);
+        time.setTextSize(TypedValue.COMPLEX_UNIT_PX, py(27));
+        time.setTextColor(0xFF8A8A8A);
+        time.setTypeface(regular);
+        time.setSingleLine(true);
+        time.setGravity(Gravity.CENTER_VERTICAL);
+        root.addView(time, at(px(560), py(50), px(59), py(30)));
+
+        TextView title = text(activity.getString(R.string.style_tvmatch), 57, MATCH_PINK,
+                Typeface.create(medium, Typeface.BOLD), Gravity.CENTER_VERTICAL);
+        float titleWidth = title.getPaint().measureText(title.getText().toString());
+        title.getPaint().setShader(new android.graphics.LinearGradient(0, 0, titleWidth, 0, MATCH_PINK, MATCH_ORANGE,
+                android.graphics.Shader.TileMode.CLAMP));
+        root.addView(title, at(px(320), py(80), px(885), py(25)));
+        ImageView mark = new ImageView(activity);
+        mark.setImageResource(R.drawable.ic_tv_heart);
+        mark.setColorFilter(MATCH_PINK);
+        root.addView(mark, at(py(58), py(58), px(812), py(36)));
+
+        String[][] hints = {{"← ", activity.getString(R.string.style_hint_next)},
+                {"→ ", activity.getString(R.string.style_hint_open)},
+                {"↑ ", activity.getString(R.string.style_hint_favorite)},
+                {"", activity.getString(R.string.style_hint_ok)}};
+        for (int i = 0; i < hints.length; i++) {
+            root.addView(text(hints[i][0] + hints[i][1], 26, 0xFF9A9A9A, regular, Gravity.CENTER_VERTICAL),
+                    at(px(420), py(40), px(118), py(391) + i * py(43)));
+        }
+
+        backCard = newMatchCard();
+        frontCard = newMatchCard();
+
+        // The five round buttons, then the settings gear: the same row for the remote.
+        int[] icons = {R.drawable.ic_undo, R.drawable.ic_close, R.drawable.ic_star, R.drawable.ic_heart, R.drawable.ic_bolt};
+        int[] colors = {0xFFF2B33D, 0xFFFD3A73, 0xFF2DB7F5, 0xFF3FD68C, 0xFFF2B33D};
+        int[] sizes = {102, 129, 102, 129, 102};
+        int[] centers = {627, 793, 960, 1126, 1293};
+        Runnable[] actions = {this::matchUndo, this::matchNext, this::matchToggleFavorite, this::matchOpen, activity::styledInputs};
+        int[] names = {R.string.style_hint_next, R.string.style_hint_next, R.string.style_hint_favorite, R.string.style_hint_open, R.string.inputs};
+        for (int i = 0; i < icons.length; i++) {
+            View button = matchButton(icons[i], colors[i], sizes[i], centers[i], 973, actions[i]);
+            button.setContentDescription(activity.getString(names[i]));
+            if (i == 4) button.setId(R.id.btnInputs);
+            buttons.add(button);
+        }
+        ImageView gear = new ImageView(activity);
+        gear.setImageResource(R.drawable.ic_settings);
+        gear.setColorFilter(0xFFA8A8A8);
+        gear.setPadding(py(12), py(12), py(12), py(12));
+        gear.setContentDescription(activity.getString(R.string.settings));
+        gear.setFocusable(true);
+        gear.setClickable(true);
+        gear.setOnClickListener(v -> activity.styledLauncherSettings());
+        gear.setOnFocusChangeListener((v, focused) -> v.setBackground(
+                focused ? rounded(0xFFFFFFFF, MATCH_PINK, 2.5f, py(30) / density) : null));
+        root.addView(gear, at(py(60), py(60), px(1811), py(25)));
+        buttons.add(gear);
+
+        android.widget.LinearLayout overlay = new android.widget.LinearLayout(activity);
+        overlay.setOrientation(android.widget.LinearLayout.VERTICAL);
+        overlay.setGravity(Gravity.CENTER);
+        overlay.setBackground(new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{0xF0FD3A73, 0xF0FF7854}));
+        TextView big = text(activity.getString(R.string.style_match), 120, Color.WHITE,
+                Typeface.create(medium, Typeface.BOLD_ITALIC), Gravity.CENTER);
+        overlay.addView(big);
+        matchOpening = text("", 38, Color.WHITE, regular, Gravity.CENTER);
+        matchOpening.setPadding(0, py(18), 0, 0);
+        overlay.addView(matchOpening);
+        overlay.setVisibility(View.GONE);
+        overlay.setElevation(dp(40));
+        root.addView(overlay, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        matchOverlay = overlay;
+    }
+
+    private View matchButton(int icon, int color, int size, int centerX, int centerY, Runnable action) {
+        ImageView button = new ImageView(activity);
+        button.setImageResource(icon);
+        button.setColorFilter(color);
+        int pad = py(size) * 27 / 100;
+        button.setPadding(pad, pad, pad, pad);
+        GradientDrawable disc = new GradientDrawable();
+        disc.setShape(GradientDrawable.OVAL);
+        disc.setColor(Color.WHITE);
+        button.setBackground(disc);
+        button.setElevation(dp(5));
+        button.setFocusable(true);
+        button.setClickable(true);
+        button.setOnClickListener(v -> action.run());
+        button.setOnFocusChangeListener((v, focused) -> {
+            GradientDrawable look = new GradientDrawable();
+            look.setShape(GradientDrawable.OVAL);
+            look.setColor(Color.WHITE);
+            if (focused) look.setStroke(dp(3), color);
+            v.setBackground(look);
+            float scale = focused ? 1.12f : 1f;
+            if (animate) v.animate().scaleX(scale).scaleY(scale).setDuration(130).start();
+            else {
+                v.setScaleX(scale);
+                v.setScaleY(scale);
+            }
+        });
+        root.addView(button, at(py(size), py(size), px(centerX) - py(size) / 2, py(centerY) - py(size) / 2));
+        return button;
+    }
+
+    private MatchCard newMatchCard() {
+        MatchCard card = new MatchCard();
+        card.view = new FrameLayout(activity);
+        final int radius = py(28);
+        card.view.setOutlineProvider(new ViewOutlineProvider() {
+            @Override
+            public void getOutline(View view, Outline outline) {
+                outline.setRoundRect(0, 0, view.getWidth(), view.getHeight(), radius);
+            }
+        });
+        card.view.setClipToOutline(true);
+        card.art = new ImageView(activity);
+        card.art.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        card.view.addView(card.art, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        View shade = new View(activity);
+        shade.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[]{0x00000000, 0xE6100005}));
+        card.view.addView(shade, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, py(330), Gravity.BOTTOM));
+        card.name = text("", 60, Color.WHITE, Typeface.create(medium, Typeface.BOLD), Gravity.START);
+        FrameLayout.LayoutParams nameLp = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM);
+        nameLp.leftMargin = px(39);
+        nameLp.rightMargin = px(30);
+        nameLp.bottomMargin = py(92);
+        card.name.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        card.view.addView(card.name, nameLp);
+        card.sub = text("", 27, 0xFFEFEFEF, regular, Gravity.START);
+        FrameLayout.LayoutParams subLp = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM);
+        subLp.leftMargin = px(39);
+        subLp.rightMargin = px(30);
+        subLp.bottomMargin = py(50);
+        card.view.addView(card.sub, subLp);
+        card.star = text("★", 52, 0xFF2DB7F5, regular, Gravity.CENTER);
+        FrameLayout.LayoutParams starLp = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP | Gravity.END);
+        starLp.topMargin = py(18);
+        starLp.rightMargin = px(24);
+        card.view.addView(card.star, starLp);
+        card.stamp = text(activity.getString(R.string.style_stamp_open), 54, MATCH_GREEN,
+                Typeface.create(medium, Typeface.BOLD), Gravity.CENTER);
+        card.stamp.setBackground(rounded(Color.TRANSPARENT, MATCH_GREEN, 3, 5));
+        card.stamp.setPadding(px(22), py(6), px(22), py(6));
+        card.stamp.setRotation(-16);
+        card.stamp.setVisibility(View.GONE);
+        FrameLayout.LayoutParams stampLp = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP | Gravity.START);
+        stampLp.topMargin = py(46);
+        stampLp.leftMargin = px(36);
+        card.view.addView(card.stamp, stampLp);
+        root.addView(card.view, at(px(CARD_W), py(CARD_H), px(CARD_LEFT), py(CARD_TOP)));
+        return card;
+    }
+
+    /** Favourites, then the latest used, then by name; the card on show stays on show. */
+    private void showDeck() {
+        usage = new AppUsage(activity);
+        matchBusy = false;
+        matchOverlay.setVisibility(View.GONE);
+        final Map<String, Long> used = new HashMap<>();
+        for (AppAdapter.Entry entry : entries) used.put(entry.pkg, usage.lastUsed(entry.pkg));
+        deck.clear();
+        deck.addAll(entries);
+        Collections.sort(deck, (a, b) -> AppUsage.compareForDeck(favorites.has(a.pkg), used.get(a.pkg), a.label,
+                favorites.has(b.pkg), used.get(b.pkg), b.label));
+        deckIndex = 0;
+        for (int i = 0; matchKey != null && i < deck.size(); i++) {
+            if (deck.get(i).component.flattenToShortString().equals(matchKey)) deckIndex = i;
+        }
+        frontCard.stamp.setVisibility(View.GONE);
+        backCard.stamp.setVisibility(View.GONE);
+        showDeckCards();
+    }
+
+    private void showDeckCards() {
+        frontCard.view.animate().cancel();
+        backCard.view.animate().cancel();
+        boolean any = !deck.isEmpty();
+        frontCard.view.setVisibility(any ? View.VISIBLE : View.GONE);
+        backCard.view.setVisibility(deck.size() > 1 ? View.VISIBLE : View.GONE);
+        if (!any) return;
+        bindMatch(frontCard, deck.get(deckIndex));
+        matchKey = frontCard.entry.component.flattenToShortString();
+        poseFront(frontCard);
+        if (deck.size() > 1) {
+            bindMatch(backCard, deck.get((deckIndex + 1) % deck.size()));
+            poseBack(backCard);
+        }
+    }
+
+    private void bindMatch(MatchCard card, AppAdapter.Entry entry) {
+        card.entry = entry;
+        if (entry.banner != null) {
+            Drawable blur = blurCache.get(entry.pkg);
+            if (blur == null) {
+                blur = RokuSkin.blurred(activity.getResources(), entry.banner);
+                blurCache.put(entry.pkg, blur);
+            }
+            card.view.setBackground(blur.getConstantState().newDrawable().mutate());
+            card.art.setPadding(0, 0, 0, 0);
+            card.art.setImageDrawable(entry.banner);
+        } else {
+            card.view.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[]{MATCH_PINK, MATCH_ORANGE}));
+            int pad = py(CARD_W) / 4;
+            card.art.setPadding(pad, pad, pad, pad);
+            card.art.setImageDrawable(entry.icon);
+        }
+        card.name.setText(entry.label);
+        String ago = AppUsage.ago(System.currentTimeMillis(), usage.lastUsed(entry.pkg));
+        String line = ago == null ? activity.getString(R.string.style_never) : activity.getString(R.string.style_used_ago, ago);
+        CharSequence kind = categoryOf(entry.pkg);
+        card.sub.setText(kind == null ? line : line + " · " + kind);
+        card.star.setVisibility(favorites.has(entry.pkg) ? View.VISIBLE : View.GONE);
+    }
+
+    /** The category the app itself declares, in the TV's language; null when it declares none. */
+    private CharSequence categoryOf(String pkg) {
+        try {
+            int category = activity.getPackageManager().getApplicationInfo(pkg, 0).category;
+            return android.content.pm.ApplicationInfo.getCategoryTitle(activity, category);
+        } catch (PackageManager.NameNotFoundException | RuntimeException e) {
+            return null;
+        }
+    }
+
+    private void poseFront(MatchCard card) {
+        card.view.setTranslationX(0);
+        card.view.setRotation(0);
+        card.view.setScaleX(1);
+        card.view.setScaleY(1);
+        card.view.setAlpha(1);
+        card.view.setTranslationZ(dp(8));
+    }
+
+    private void poseBack(MatchCard card) {
+        card.view.setTranslationX(0);
+        card.view.setRotation(4);
+        card.view.setScaleX(.98f);
+        card.view.setScaleY(.98f);
+        card.view.setAlpha(.8f);
+        card.view.setTranslationZ(dp(2));
+    }
+
+    private boolean onMatchKey(KeyEvent event, boolean ok, boolean arrow) {
+        int code = event.getKeyCode();
+        boolean down = event.getAction() == KeyEvent.ACTION_DOWN;
+        if (code == KeyEvent.KEYCODE_MENU) {
+            if (event.getAction() == KeyEvent.ACTION_UP && !event.isCanceled()) activity.styledLauncherSettings();
+            return true;
+        }
+        if (!ok && !arrow) return false;
+        if (matchBusy) return true;
+        if (buttonFocus >= 0) {
+            // On the row of buttons OK is the focused button's own click.
+            if (ok) return false;
+            if (!down) return true;
+            if (code == KeyEvent.KEYCODE_DPAD_UP) {
+                buttonFocus = -1;
+                root.requestFocus();
+                play(StyleSounds.TICK);
+            } else if (code == KeyEvent.KEYCODE_DPAD_LEFT && buttonFocus > 0) {
+                focusButton(buttonFocus - 1);
+                play(StyleSounds.TICK);
+            } else if (code == KeyEvent.KEYCODE_DPAD_RIGHT && buttonFocus < buttons.size() - 1) {
+                focusButton(buttonFocus + 1);
+                play(StyleSounds.TICK);
+            }
+            return true;
+        }
+        if (ok) {
+            if (event.getAction() == KeyEvent.ACTION_UP && !event.isCanceled()) matchOpen();
+            return true;
+        }
+        if (!down || event.getRepeatCount() > 0 && code != KeyEvent.KEYCODE_DPAD_LEFT) return true;
+        switch (code) {
+            case KeyEvent.KEYCODE_DPAD_LEFT: matchNext(); break;
+            case KeyEvent.KEYCODE_DPAD_RIGHT: matchOpen(); break;
+            case KeyEvent.KEYCODE_DPAD_UP: matchToggleFavorite(); break;
+            default:
+                focusButton(2);
+                play(StyleSounds.TICK);
+                break;
+        }
+        return true;
+    }
+
+    /** The card on show flies off to the left and the one behind it comes forward. */
+    private void matchNext() {
+        if (deck.size() < 2 || matchBusy) return;
+        play(StyleSounds.PAGE);
+        deckIndex = (deckIndex + 1) % deck.size();
+        MatchCard gone = frontCard;
+        frontCard = backCard;
+        backCard = gone;
+        matchKey = frontCard.entry.component.flattenToShortString();
+        if (!animate) {
+            showDeckCards();
+            return;
+        }
+        matchBusy = true;
+        frontCard.view.setTranslationZ(dp(6));
+        frontCard.view.animate().rotation(0).scaleX(1).scaleY(1).alpha(1).setDuration(240).start();
+        gone.view.setTranslationZ(dp(8));
+        gone.view.animate().translationX(-width * .75f).rotation(-20).alpha(0).setDuration(270)
+                .withEndAction(() -> {
+                    matchBusy = false;
+                    showDeckCards();
+                }).start();
+    }
+
+    /** The app before comes back in from the left, over the one on show. */
+    private void matchUndo() {
+        if (deck.size() < 2 || matchBusy) return;
+        play(StyleSounds.PAGE);
+        deckIndex = (deckIndex + deck.size() - 1) % deck.size();
+        MatchCard incoming = backCard;
+        backCard = frontCard;
+        frontCard = incoming;
+        bindMatch(incoming, deck.get(deckIndex));
+        matchKey = incoming.entry.component.flattenToShortString();
+        if (!animate) {
+            showDeckCards();
+            return;
+        }
+        matchBusy = true;
+        incoming.view.setTranslationX(-width * .75f);
+        incoming.view.setRotation(-20);
+        incoming.view.setAlpha(0);
+        incoming.view.setTranslationZ(dp(8));
+        backCard.view.setTranslationZ(dp(2));
+        backCard.view.animate().rotation(4).scaleX(.98f).scaleY(.98f).alpha(.8f).setDuration(240).start();
+        incoming.view.animate().translationX(0).rotation(0).alpha(1).setDuration(270).withEndAction(() -> {
+            matchBusy = false;
+            showDeckCards();
+        }).start();
+    }
+
+    private void matchToggleFavorite() {
+        if (frontCard.entry == null || deck.isEmpty()) return;
+        boolean added = favorites.toggle(frontCard.entry.pkg);
+        play(StyleSounds.SELECT);
+        frontCard.star.setVisibility(added ? View.VISIBLE : View.GONE);
+        android.widget.Toast.makeText(activity, activity.getString(
+                added ? R.string.style_favorite_added : R.string.style_favorite_removed, frontCard.entry.label),
+                android.widget.Toast.LENGTH_SHORT).show();
+    }
+
+    /** The green stamp lands, the match screen shows for a moment, and the app opens. */
+    private void matchOpen() {
+        if (deck.isEmpty() || matchBusy) return;
+        AppAdapter.Entry entry = frontCard.entry;
+        play(StyleSounds.NOTICE);
+        if (!animate) {
+            model.launch(entry);
+            return;
+        }
+        matchBusy = true;
+        TextView stamp = frontCard.stamp;
+        stamp.setVisibility(View.VISIBLE);
+        stamp.setAlpha(0f);
+        stamp.setScaleX(1.7f);
+        stamp.setScaleY(1.7f);
+        stamp.animate().alpha(1).scaleX(1).scaleY(1).setDuration(170).start();
+        root.postDelayed(() -> {
+            matchOpening.setText(activity.getString(R.string.style_opening, entry.label));
+            matchOverlay.setAlpha(0f);
+            matchOverlay.setVisibility(View.VISIBLE);
+            matchOverlay.animate().alpha(1).setDuration(160).start();
+        }, 360);
+        root.postDelayed(() -> {
+            model.launch(entry);
+            stamp.setVisibility(View.GONE);
+            // An app that refuses to open leaves Home in front: the match screen must not stay over it.
+            root.postDelayed(() -> {
+                matchBusy = false;
+                matchOverlay.setVisibility(View.GONE);
+            }, 900);
+        }, 1050);
     }
 
     // ---- classic Roku ---------------------------------------------------------------------------------

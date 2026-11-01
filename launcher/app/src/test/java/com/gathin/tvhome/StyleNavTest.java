@@ -128,6 +128,14 @@ public class StyleNavTest {
         assertTrue(!AppUsage.recent(now, 0));
     }
 
+    @Test public void theDeckPutsFavoritesFirstThenLatestUsedThenByName() {
+        assertTrue(AppUsage.compareForDeck(true, 0, "Z", false, 999, "A") < 0);
+        assertTrue(AppUsage.compareForDeck(false, 5, "Z", false, 9, "A") > 0);
+        assertTrue(AppUsage.compareForDeck(false, 9, "Z", false, 0, "A") < 0);
+        assertTrue(AppUsage.compareForDeck(false, 0, "alpha", false, 0, "Beta") < 0);
+        assertTrue(AppUsage.compareForDeck(true, 9, "Z", true, 5, "A") < 0);
+    }
+
     @Test public void anUnknownStyleIsTheDefaultLook() {
         assertEquals(LauncherStyle.WII, LauncherStyle.normalize("wii"));
         assertEquals(LauncherStyle.ROKU, LauncherStyle.normalize("roku"));

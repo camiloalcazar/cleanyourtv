@@ -57,6 +57,13 @@ final class AppUsage {
         return gone / (30 * DAY) + " mes";
     }
 
+    /** tvmatch's deck: favourites first, then the latest used, then the rest by name; favourites keep that same order. */
+    static int compareForDeck(boolean favoriteA, long usedA, String labelA, boolean favoriteB, long usedB, String labelB) {
+        if (favoriteA != favoriteB) return favoriteA ? -1 : 1;
+        if (usedA != usedB) return usedA > usedB ? -1 : 1;
+        return labelA.compareToIgnoreCase(labelB);
+    }
+
     /** Used in the last 24 hours. */
     static boolean recent(long now, long then) {
         return then > 0 && now - then < DAY;
